@@ -42,18 +42,18 @@ def GetPositionIs():
 
 
 # Move to position at speed
-def MoveToPositionSpeed(target_position, target_speed):
-    epos.VCS_SetPositionProfile(keyHandle, nodeID, target_speed, acceleration, deceleration,
-                                byref(pErrorCode))  # set profile parameters
-    while True:
-        if target_speed != 0:
-            epos.VCS_MoveToPosition(keyHandle, nodeID, target_position, True, True,
-                                    byref(pErrorCode))  # move to position
-        elif target_speed == 0:
-            epos.VCS_HaltPositionMovement(keyHandle, nodeID, byref(pErrorCode))  # halt motor
-        true_position = GetPositionIs()
-        if true_position == target_position:
-            break
+# def MoveToPositionSpeed(target_position, target_speed):
+#     epos.VCS_SetPositionProfile(keyHandle, nodeID, target_speed, acceleration, deceleration,
+#                                 byref(pErrorCode))  # set profile parameters
+#     while True:
+#         if target_speed != 0:
+#             epos.VCS_MoveToPosition(keyHandle, nodeID, target_position, True, True,
+#                                     byref(pErrorCode))  # move to position
+#         elif target_speed == 0:
+#             epos.VCS_HaltPositionMovement(keyHandle, nodeID, byref(pErrorCode))  # halt motor
+#         true_position = GetPositionIs()
+#         if true_position == target_position:
+#             break
 
 
 def close_device():
