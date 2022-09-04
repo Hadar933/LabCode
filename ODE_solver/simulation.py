@@ -17,7 +17,6 @@ capabilities)
 ###################################################################################################################
 """
 
-NUM_SAMPLES = 100  # every time window has this much samples
 MASS = 1  # TODO: get wing mass
 WING_LENGTH = 0.07  # meter
 AERODYNAMIC_CENTER = 0.7 * WING_LENGTH
@@ -76,7 +75,7 @@ def phi_dot_zero_crossing_event(t, y):
 
 
 class RobotSimulation:
-    def __init__(self, tau_z) -> None:
+    def __init__(self, tau_z, alpha=45, phi0=0.0, phi_dot0=0.01, start_t=0, end_t=1, delta_t=0.01) -> None:
         """
         :param tau_z: A function that returns float of the current torque
         :param phi0: initial position of the current time window
@@ -85,14 +84,15 @@ class RobotSimulation:
         :param end_t: end time of the current window
         :param delta_t: the time increments
         """
-        self._alpha = 45  # angle of attack
-        self.tau_z = tau_z  # motor torque function
         self.solution = 0
-        self.phi0 = 0
-        self.phi_dot0 = 0.002
-        self.start_t = 0
-        self.end_t = 2
-        self.delta_t = 0.01
+        self.tau_z = tau_z  # motor torque function
+        self._alpha = alpha  # angle of attack
+        self.phi0 = phi0
+        self.phi_dot0 = phi_dot0
+        # when defining time values we try to avoid floating points start end, as this may interfere with solve_ivp
+        self.start_t = start_t
+        self.end_t = end_t
+        self.delta_t = delta_t
 
     def update_time(self, new_start, new_end) -> None:
         """
@@ -144,10 +144,9 @@ class RobotSimulation:
 
     def tau_drag(self, phi_dot):
         """
-        TODO: try a rect with period time = time window
         the drag moment
         """
-        return 0.5 * AIR_DENSITY * WING_AREA * self.get_c_drag() * (GYRATION_RADIUS ** 2) * (phi_dot ** 2)
+        return 0.5 * AIR_DENSITY * WING_AREA * self.get_c_drag() * GYRATION_RADIUS * (phi_dot ** 2)
 
     def phi_derivatives(self, t, y):
         """
@@ -188,6 +187,9 @@ class RobotSimulation:
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
             if sol.status == ZERO_CROSSING:  # phi_dot == 0 so we solve again from where we have finished
+                # print(f"Zero crossing at time t={start_t}, phi={sol.y[0][-1]}, phi_dot = {sol.y[1][-1]}\n"
+                #       f". Jumping to time {sol.t[-1] + delta_t}")
+
                 start_t = sol.t[-1] + delta_t
                 phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
                 self.flip_alpha()
@@ -197,16 +199,24 @@ class RobotSimulation:
         phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
 
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
+        # phi_arr.append(phi)
+        # phi_dot_arr.append(phi_dot)
+        # phi_ddot_arr.append(phi_ddot)
         plot(time, phi, phi_dot, phi_ddot)
-        print(ang)
 
-        # else:
-        #     for t in np.arange(start_t, end_t, delta_t):  # t defines the last time sample in the current iteration
-        #         t_window = np.arange(prev_t, t - inner_delta_t, inner_delta_t)  # a time window [previous t, current t)
-        #         sol = solve_ivp(self.phi_derivatives, t_span=(prev_t, t), y0=[phi_0, phi_dot_0], t_eval=t_window,
-        #                         events=lambda t, phi_dot: phi_dot)
-        #         phi, phi_dot = sol.y
-        #         _, phi_ddot = self.phi_derivatives(t_window, [phi, phi_dot])
-        #         phi_0, phi_dot_0 = phi[-1], phi_dot[-1]
-        #         prev_t = t
-        #         plot(t_window, phi, phi_dot, phi_ddot)
+
+# if __name__ == '__main__':
+#     phi_arr = []
+#     phi_dot_arr = []
+#     phi_ddot_arr = []
+#     for _ in range(1):
+#         phi0 = 0
+#         phidot0 = 0.01
+#         start_t = 0
+#         end_t = 1
+#         for _ in range(5):
+#             sim = RobotSimulation(tau_z=lambda x: 1, phi0=phi0, phi_dot0=phidot0, start_t=start_t, end_t=end_t)
+#             sim.solve_dynamics()
+#             phi0, phidot0 = sim.solution[0][-1], sim.solution[1][-1]
+#             start_t = end_t
+#             end_t = end_t + 1
