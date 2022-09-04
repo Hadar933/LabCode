@@ -164,7 +164,7 @@ class RobotSimulation:
         :param phi_dot:
         :return:
         """
-        return 0.5 * AIR_DENSITY * WING_AREA * self.get_c_lift() * (phi_dot ** 2)
+        return np.abs(0.5 * AIR_DENSITY * WING_AREA * self.get_c_lift() * (phi_dot ** 2))
 
     def solve_dynamics(self):
         """

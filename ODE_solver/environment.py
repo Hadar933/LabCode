@@ -5,7 +5,7 @@ from simulation import RobotSimulation
 
 
 class WingEnv(Env):
-    def __init__(self, min_torque=-1.0, max_torque=1.0, min_phi=0, max_phi=180):
+    def __init__(self, min_torque=-np.inf, max_torque=np.inf, min_phi=0, max_phi=180):
         """
         the action space is a continuous torque value
         the observation space is currently a continuous value for phi (later I will add psi, theta)
@@ -43,9 +43,9 @@ class WingEnv(Env):
         phi_dot = sol[1][-1]  # we use the velocity at the last time step
         reward = self.simulation.drag_force(phi_dot)
         if phi > self.max_phi:
-            reward -= 1
+            reward /= 2
         elif phi < self.min_phi:  # we punish angles not in [0,180]
-            reward -= 1
+            reward /= 2
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
