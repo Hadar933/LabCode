@@ -5,7 +5,7 @@ from simulation import RobotSimulation
 
 
 class WingEnv(Env):
-    def __init__(self, min_torque=-np.inf, max_torque=np.inf, min_phi=0, max_phi=180):
+    def __init__(self, min_torque=-1, max_torque=1, min_phi=0, max_phi=2 * np.pi):
         """
         the action space is a continuous torque value
         the observation space is currently a continuous value for phi (later I will add psi, theta)
@@ -14,44 +14,60 @@ class WingEnv(Env):
         :param min_phi: the minimal rotation angle
         :param max_phi: the maximal rotation angle
         """
-        self.min_torque = np.array([min_torque], dtype=np.float32)
-        self.max_torque = np.array([max_torque], dtype=np.float32)
-        self.min_phi = np.float32(min_phi)
-        self.max_phi = np.float32(max_phi)
+        self.max_torque = max_torque
+        self.min_torque = min_torque
+        self.max_phi = max_phi
+        self.min_phi = min_phi
+        self.low = np.array([-1.0])
+        self.high = np.array([1.0])
 
-        self.action_space = Box(self.min_torque, self.max_torque, dtype=np.float32)
-        self.observation_space = Box(np.array([0], dtype=np.float32), np.array([np.inf], dtype=np.float32),
-                                     dtype=np.float32)
-        self.state = 0  # some initial phi state
-        self.rounds = 20  # number of rounds
+        self.action_space = Box(self.low, self.high)
+        self.observation_space = Box(self.low, self.high)
+        self.state = 0  # initial phi state
+        self.action = 0.02  # initial torque value
+        self.rounds = 20  # arbitrary number of rounds
         self.collected_reward = []
-        self.simulation = RobotSimulation(tau_z=lambda x: self.action)
+        self.simulation = RobotSimulation(motor_torque=lambda x: self.action)
         self.time_window = 1
+
+    def trim_phi(self, phi):
+        """
+        given unbounded phi np array, casts it [-1,1]
+        :param phi:
+        :return:
+        """
+        half = np.max(phi) / 2
+        phi = (np.clip(phi, self.min_phi, self.max_phi) - half) / half
+        return phi
 
     def step(self, action):
         done = False if self.rounds > 0 else True
         self.rounds -= 1
         info = {}
+
         # calculate the new phi:
-        self.simulation.set_tau_z(lambda x: action)
+        self.simulation.set_motor_torque(lambda x: action)
         self.simulation.solve_dynamics()
         sol = self.simulation.solution
-        phi = sol[0][-1]
-        self.state = np.float32(phi)
+        # phi = self.trim_phi(sol[0]) # TODO: if you normalize - all other params must be normalized
+
+        last_phi = sol[0][-1]
+        self.state = np.float32(last_phi)
 
         # calculate the reward:
-        phi_dot = sol[1][-1]  # we use the velocity at the last time step
-        reward = self.simulation.drag_force(phi_dot)
-        if phi > self.max_phi:
-            reward /= 2
-        elif phi < self.min_phi:  # we punish angles not in [0,180]
-            reward /= 2
+        last_phi_dot = sol[1][-1]
+        # TODO: use avg reward on all phi dot vector
+        reward = self.simulation.lift_force(last_phi_dot)
+        if last_phi > self.max_phi:
+            reward = 0
+        elif last_phi < self.min_phi:  # we punish angles not in [0,180]
+            reward = 0
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
-        self.simulation.update_time(self.simulation.end_t, self.simulation.end_t + self.time_window)
-        self.simulation.update_initial_cond(phi, phi_dot)
-
+        self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.time_window)
+        self.simulation.set_init_cond(last_phi, last_phi_dot)
+        print(f"s={self.state}, a={action}, r={reward}")
         return np.array([self.state]), reward, done, info
 
     def render(self, mode="human"):
