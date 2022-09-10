@@ -17,10 +17,10 @@ capabilities)
 ###################################################################################################################
 """
 
-MASS = 2.6e-4  # TODO: get wing mass
-WING_LENGTH = 0.07  # meter
+MASS = 2.6e-4  # from the hummingbird paper
+WING_LENGTH = 0.07  # meters
 AERODYNAMIC_CENTER = 0.7 * WING_LENGTH
-GYRATION_RADIUS = 0.6 * WING_LENGTH
+GYRATION_RADIUS = 0.6 * WING_LENGTH  # we use this for moment of inertia
 MoI = MASS * GYRATION_RADIUS ** 2
 AIR_DENSITY = 1.2  # From Arion's simulatio
 WING_AREA = 0.5 * WING_LENGTH * (0.5 * WING_LENGTH) * np.pi  # 1/2 ellipse with minor radios ~ 1/2 major = length/2
@@ -29,6 +29,8 @@ C_D_MAX = 3.4
 C_D_0 = 0.4
 C_L_MAX = 1.8
 ZERO_CROSSING = 1
+RADIAN45 = np.pi / 4
+RADIAN135 = 3 * RADIAN45
 
 
 def plot(time, phi, phi_dot, phi_ddot, torque, phi0, phidot0):
@@ -38,11 +40,11 @@ def plot(time, phi, phi_dot, phi_ddot, torque, phi0, phidot0):
     fig, axs = plt.subplots(3, 1)
     fig.set_size_inches(7, 9)
     fig.suptitle(
-        r"$\ddot \phi = a\tau_z -b\dot \phi^2$ " + "\n" + \
-        r"$\phi_0=$" + f"{phi0:.3f}[rad], " + \
-        r"$\dot \phi_0=$" + f"{phidot0:.3f}[rad/sec], " + \
-        r"$\tau_z=$" + f"{torque:.3f}[N/m]" + "\n" \
-                                              r"$a=\frac{1}{2mL_{aero}^2}, b=\frac{1}{2mL_{aero}^2}\rho_{air} A_{wing} C_{drag}L^2$" + "\n"
+        r"$\ddot \phi = a\tau_z -b\dot \phi^2$ " + "\n" +
+        r"$\phi_0=$" + f"{phi0:.3f}[rad], " +
+        r"$\dot \phi_0=$" + f"{phidot0:.3f}[rad/sec], " +
+        r"$\tau_z=$" + f"{torque:.3f}[N/m]" + "\n" +
+        r"$a=\frac{1}{2mL_{aero}^2}, b=\frac{1}{2mL_{aero}^2}\rho_{air} A_{wing} C_{drag}L^2$" + "\n"
     )
     axs[0].plot(time, phi, 'red', linewidth=2)
     axs[0].set(ylabel=r'$\phi$ [rad]')
@@ -68,7 +70,8 @@ def phi_dot_zero_crossing_event(t, y):
 
 
 class RobotSimulation:
-    def __init__(self, motor_torque, alpha=45, phi0=0.0, phi_dot0=0.01, start_t=0, end_t=0.05, delta_t=0.001) -> None:
+    def __init__(self, motor_torque, alpha=RADIAN45, phi0=0.0, phi_dot0=0.01, start_t=0, end_t=0.05,
+                 delta_t=0.001) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
         :param phi0: initial phi position of the current time window
@@ -113,7 +116,7 @@ class RobotSimulation:
         changes the angle of attack's sign
         :return:
         """
-        self.alpha = -self.alpha
+        self.alpha = RADIAN135 if self.alpha == RADIAN45 else RADIAN45
 
     def c_drag(self) -> float:
         """
@@ -151,7 +154,7 @@ class RobotSimulation:
         """
         return np.abs(0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * (phi_dot ** 2))
 
-    def solve_dynamics(self, phiarr, phidotarr, phiddotarr):
+    def solve_dynamics(self, phiarr, phidotarr, phiddotarr, angarr, torquearr):
         """
         solves the ODE
         :return:
@@ -163,61 +166,61 @@ class RobotSimulation:
         ang = []
         times_between_zero_cross = []
         sol_between_zero_cross = []
-        already_crossed_zero = False
         while start_t < end_t:
-
-            ang.append(self.alpha)
-            if not already_crossed_zero:
-                sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
-                                events=phi_dot_zero_crossing_event)
-            else:
-                sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0])
+            torquearr.append(self.motor_torque(0))
+            print(f"{self.motor_torque(0):.4f}")
+            sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
+                            events=phi_dot_zero_crossing_event)
             self.solution = sol.y
+            ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
-            if sol.status == ZERO_CROSSING and not already_crossed_zero:  #
-                already_crossed_zero = True  # we use this to avoid multiple entries when phi dot ~ 0
-                # print(f"Zero crossing at time t={start_t}, phi={sol.y[0][-1]}, phi_dot = {sol.y[1][-1]}\n"
-                #       f". Jumping to time {sol.t[-1] + delta_t}")
-
+            if sol.status == ZERO_CROSSING:
                 start_t = sol.t[-1] + delta_t
                 phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
                 self.flip_alpha()
-            else:
+            else:  # no zero crossing = the solution is for [start_t,end_t] and we are essentially done
                 break
         time = np.concatenate(times_between_zero_cross)
         phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
+        ang = np.concatenate(ang)
 
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
         phiarr.append(phi)
         phidotarr.append(phi_dot)
         phiddotarr.append(phi_ddot)
-        # plot(time, phi, phi_dot, phi_ddot, self.motor_torque(0), self.phi0, self.phi_dot0)
+        angarr.append(ang)
+        plot(time, phi, phi_dot, phi_ddot, self.motor_torque(0), self.phi0, self.phi_dot0)
 
 
 if __name__ == '__main__':
-    # TODO: time windows are too large - one second is many many cycles
+
     phi_arr = []
     phi_dot_arr = []
     phi_ddot_arr = []
+    angarr = []
+    torquearr = []
     phi0 = 0
     phidot0 = 0.01
     start_t = 0
     end_t = 0.05
     delta_t = 0.001
-    sin = 0.02 * np.sin(2 * np.pi * np.linspace(0, 2, 50))
-    for action in sin:
+    sin = np.sin(2 * np.pi * np.linspace(0, 3, 60))
+    for action in [1, -1, 1, -1]:
         # for action in np.concatenate([-np.arange(0, 0.03, 0.005), np.arange(-0.03, 0.03, 0.005)]):
 
         sim = RobotSimulation(lambda x: action, phi0=phi0, phi_dot0=phidot0, start_t=start_t, end_t=end_t)
-        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr)
+        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, angarr, torquearr)
         phi0, phidot0 = sim.solution[0][-1], sim.solution[1][-1]
         start_t = end_t
         end_t += 0.05
     phi_arr = np.concatenate(phi_arr)
     phi_dot_arr = np.concatenate(phi_dot_arr)
     phi_ddot_arr = np.concatenate(phi_ddot_arr)
+    angle_arr = np.concatenate(angarr)
     plot(np.linspace(0, end_t, len(phi_arr)), phi_arr, phi_dot_arr, phi_ddot_arr, 0, 0, 0)
+    plt.plot(angle_arr)
+    plt.show()
 
     # class Solver():
     #     def __init__(self):
@@ -238,8 +241,8 @@ if __name__ == '__main__':
     #         phi, phi_dot = y[0], y[1]
     #         dy_dt = [phi_dot, a * self.torque - b * phi_dot * np.abs(phi_dot)]
     #         return dy_dt
+
     #
-    # #
     # phi_arr = []
     # phi_dot_arr = []
     # phi_ddot_arr = []
@@ -250,7 +253,7 @@ if __name__ == '__main__':
     # delta_t = 0.001
     # s = Solver()
     # sin = np.sin(2 * np.pi * np.linspace(0, 1, 20))
-    # for torque in sin:
+    # # for torque in [-1,1,-1,1]:
     #     s.set_torque(torque)
     #     sol = solve_ivp(s.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0])
     #     phi, phi_dot = sol.y
