@@ -28,7 +28,7 @@ class WingEnv(Env):
         self.rounds = 20  # arbitrary number of rounds
         self.collected_reward = []
         self.simulation = RobotSimulation(motor_torque=lambda x: self.action)
-        self.time_window = 1
+        self.time_window = 0.05
 
     def trim_phi(self, phi):
         """
@@ -47,7 +47,7 @@ class WingEnv(Env):
 
         # calculate the new phi:
         self.simulation.set_motor_torque(lambda x: action)
-        self.simulation.solve_dynamics()
+        self.simulation.solve_dynamics([], [], [], [], [])
         sol = self.simulation.solution
         # phi = self.trim_phi(sol[0]) # TODO: if you normalize - all other params must be normalized
 
@@ -58,10 +58,8 @@ class WingEnv(Env):
         last_phi_dot = sol[1][-1]
         # TODO: use avg reward on all phi dot vector
         reward = self.simulation.lift_force(last_phi_dot)
-        if last_phi > self.max_phi:
-            reward = 0
-        elif last_phi < self.min_phi:  # we punish angles not in [0,180]
-            reward = 0
+        if last_phi > self.max_phi or last_phi < self.min_phi:  # we punish angles not in [0,180]
+            reward -= 0.1 * reward
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
@@ -78,3 +76,4 @@ class WingEnv(Env):
         self.action = 0.0
         self.rounds = 20
         return np.array([self.state]).astype(np.float32)
+

@@ -9,12 +9,10 @@ if __name__ == '__main__':
     env = WingEnv()
     # check_env(env)
 
-
     model = PPO("MlpPolicy", env)
     model.learn(total_timesteps=10_000)
     model.save("PPO")
     del model
-
 
     obs = env.reset()
     model = PPO.load("PPO.zip")
@@ -32,7 +30,6 @@ if __name__ == '__main__':
 
     env.close()
 
-
     plt.scatter(range(1000), R, s=0.3)
     plt.title("Reward")
     plt.show()
@@ -44,4 +41,3 @@ if __name__ == '__main__':
     plt.scatter(range(1000), S, s=0.3)
     plt.title("State")
     plt.show()
-

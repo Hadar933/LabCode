@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-
 # TODO:
 """
 1. we might want to regularize the torque's gradient (changes in torque cannot be to large, as to account for the motor's
@@ -33,11 +32,11 @@ RADIAN45 = np.pi / 4
 RADIAN135 = 3 * RADIAN45
 
 
-def plot(time, phi, phi_dot, phi_ddot, torque, phi0, phidot0):
+def plot_all(time, phi, phi_dot, phi_ddot, alpha, torque, phi0, phidot0):
     """
     plots the given data in three separate graphs
     """
-    fig, axs = plt.subplots(3, 1)
+    fig, axs = plt.subplots(4, 1)
     fig.set_size_inches(7, 9)
     fig.suptitle(
         r"$\ddot \phi = a\tau_z -b\dot \phi^2$ " + "\n" +
@@ -48,11 +47,17 @@ def plot(time, phi, phi_dot, phi_ddot, torque, phi0, phidot0):
     )
     axs[0].plot(time, phi, 'red', linewidth=2)
     axs[0].set(ylabel=r'$\phi$ [rad]')
+
     axs[1].plot(time, phi_dot, 'orange', linewidth=2)
     axs[1].set(ylabel=r'$\dot \phi$ [rad/sec]')
+
     axs[2].plot(time, phi_ddot, 'green', linewidth=2)
     axs[2].set(ylabel=r'$\ddot \phi$ [rad/$sec^2$]')
-    axs[2].set(xlabel='time [sec]')
+
+    axs[3].plot(time, alpha, 'blue', linewidth=2)
+    axs[3].set(ylabel=r'$\alpha$')
+    axs[3].set(xlabel='time [sec]')
+
     for ax in axs.flat:
         ax.grid()
         # ax.ticklabel_format(style='sci', scilimits=(0, 0))
@@ -70,7 +75,7 @@ def phi_dot_zero_crossing_event(t, y):
 
 
 class RobotSimulation:
-    def __init__(self, motor_torque, alpha=RADIAN45, phi0=0.0, phi_dot0=0.01, start_t=0, end_t=0.05,
+    def __init__(self, motor_torque=lambda x: 0, alpha=RADIAN45, phi0=0.0, phi_dot0=0.01, start_t=0, end_t=0.05,
                  delta_t=0.001) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
@@ -144,6 +149,8 @@ class RobotSimulation:
         """
         phi, phi_dot = y[0], y[1]
         dy_dt = [phi_dot, (self.motor_torque(t) - self.drag_torque(phi_dot)) / MoI]
+        # dy_dt = [phi_dot, self.motor_torque(t)-phi_dot * np.abs(phi_dot)]
+        # dy_dt = [phi_dot, -phi]
         return dy_dt
 
     def lift_force(self, phi_dot):
@@ -154,7 +161,7 @@ class RobotSimulation:
         """
         return np.abs(0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * (phi_dot ** 2))
 
-    def solve_dynamics(self, phiarr, phidotarr, phiddotarr, angarr, torquearr):
+    def solve_dynamics(self, phiarr, phidotarr, phiddotarr, angarr, timearr):
         """
         solves the ODE
         :return:
@@ -162,15 +169,13 @@ class RobotSimulation:
         phi_0, phi_dot_0 = self.phi0, self.phi_dot0
         start_t, end_t, delta_t = self.start_t, self.end_t, self.delta_t
         phi_dot_zero_crossing_event.terminal = True
-
+        phi_dot_zero_crossing_event.direction = -np.sign(phi_dot_0)
         ang = []
         times_between_zero_cross = []
         sol_between_zero_cross = []
         while start_t < end_t:
-            torquearr.append(self.motor_torque(0))
-            print(f"{self.motor_torque(0):.4f}")
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
-                            events=phi_dot_zero_crossing_event)
+                            events=phi_dot_zero_crossing_event, max_step=0.01)
             self.solution = sol.y
             ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
@@ -178,6 +183,7 @@ class RobotSimulation:
             if sol.status == ZERO_CROSSING:
                 start_t = sol.t[-1] + delta_t
                 phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
+                phi_dot_zero_crossing_event.direction *= -1
                 self.flip_alpha()
             else:  # no zero crossing = the solution is for [start_t,end_t] and we are essentially done
                 break
@@ -190,37 +196,31 @@ class RobotSimulation:
         phidotarr.append(phi_dot)
         phiddotarr.append(phi_ddot)
         angarr.append(ang)
-        plot(time, phi, phi_dot, phi_ddot, self.motor_torque(0), self.phi0, self.phi_dot0)
+        timearr.append(time)
+        # plot(time, phi, phi_dot, phi_ddot, self.motor_torque(0), self.phi0, self.phi_dot0)
 
 
 if __name__ == '__main__':
-
-    phi_arr = []
-    phi_dot_arr = []
-    phi_ddot_arr = []
-    angarr = []
-    torquearr = []
-    phi0 = 0
-    phidot0 = 0.01
-    start_t = 0
-    end_t = 0.05
-    delta_t = 0.001
-    sin = np.sin(2 * np.pi * np.linspace(0, 3, 60))
-    for action in [1, -1, 1, -1]:
-        # for action in np.concatenate([-np.arange(0, 0.03, 0.005), np.arange(-0.03, 0.03, 0.005)]):
-
-        sim = RobotSimulation(lambda x: action, phi0=phi0, phi_dot0=phidot0, start_t=start_t, end_t=end_t)
-        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, angarr, torquearr)
+    phi_arr, phi_dot_arr, phi_ddot_arr, angarr, timearr = [], [], [], [], []
+    phi0, phidot0 = 0, 0.01
+    start_t, end_t, delta_t = 0, 0.05, 0.001
+    sim = RobotSimulation()
+    for action in 0.02 * (np.sin(2 * np.pi * np.linspace(0, 3, 60))):
+        # print(f"a={action:.3f}, start_t={start_t:.3f}, end_t={end_t:.3f},alpha={sim.alpha:.3f}")
+        sim.set_motor_torque(lambda x: action)
+        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, angarr, timearr)
         phi0, phidot0 = sim.solution[0][-1], sim.solution[1][-1]
         start_t = end_t
         end_t += 0.05
+        sim.set_init_cond(phi0, phidot0)
+        sim.set_time(start_t, end_t)
     phi_arr = np.concatenate(phi_arr)
     phi_dot_arr = np.concatenate(phi_dot_arr)
     phi_ddot_arr = np.concatenate(phi_ddot_arr)
     angle_arr = np.concatenate(angarr)
-    plot(np.linspace(0, end_t, len(phi_arr)), phi_arr, phi_dot_arr, phi_ddot_arr, 0, 0, 0)
-    plt.plot(angle_arr)
-    plt.show()
+    timearr = np.concatenate(timearr)
+    angarr = np.concatenate(angarr)
+    plot_all(timearr, phi_arr, phi_dot_arr, phi_ddot_arr, angarr, 0, 0, 0)
 
     # class Solver():
     #     def __init__(self):
@@ -239,9 +239,9 @@ if __name__ == '__main__':
     #         b = 271.9406850484702
     #
     #         phi, phi_dot = y[0], y[1]
-    #         dy_dt = [phi_dot, a * self.torque - b * phi_dot * np.abs(phi_dot)]
+    #         # dy_dt = [phi_dot, a * self.torque - b * phi_dot * np.abs(phi_dot)]
+    #         dy_dt = [phi_dot, -phi]
     #         return dy_dt
-
     #
     # phi_arr = []
     # phi_dot_arr = []
@@ -249,11 +249,11 @@ if __name__ == '__main__':
     # phi_0 = 0
     # phi_dot_0 = 0.01
     # start_t = 0
-    # end_t = 0.05
-    # delta_t = 0.001
+    # end_t = 50
+    # delta_t = 0.01
     # s = Solver()
-    # sin = np.sin(2 * np.pi * np.linspace(0, 1, 20))
-    # # for torque in [-1,1,-1,1]:
+    #
+    # for torque in [0.02]:
     #     s.set_torque(torque)
     #     sol = solve_ivp(s.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0])
     #     phi, phi_dot = sol.y
