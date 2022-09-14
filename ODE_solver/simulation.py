@@ -161,7 +161,7 @@ class RobotSimulation:
         """
         return np.abs(0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * (phi_dot ** 2))
 
-    def solve_dynamics(self, phiarr, phidotarr, phiddotarr, angarr, timearr):
+    def solve_dynamics(self):#, phiarr, phidotarr, phiddotarr, angarr, timearr):
         """
         solves the ODE
         :return:
@@ -192,11 +192,11 @@ class RobotSimulation:
         ang = np.concatenate(ang)
 
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
-        phiarr.append(phi)
-        phidotarr.append(phi_dot)
-        phiddotarr.append(phi_ddot)
-        angarr.append(ang)
-        timearr.append(time)
+        # phiarr.append(phi)
+        # phidotarr.append(phi_dot)
+        # phiddotarr.append(phi_ddot)
+        # angarr.append(ang)
+        # timearr.append(time)
         # plot(time, phi, phi_dot, phi_ddot, self.motor_torque(0), self.phi0, self.phi_dot0)
 
 
