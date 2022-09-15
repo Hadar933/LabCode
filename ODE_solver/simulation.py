@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
+
 # TODO:
 """
 1. we might want to regularize the torque's gradient (changes in torque cannot be to large, as to account for the motor's
@@ -149,8 +150,6 @@ class RobotSimulation:
         """
         phi, phi_dot = y[0], y[1]
         dy_dt = [phi_dot, (self.motor_torque(t) - self.drag_torque(phi_dot)) / MoI]
-        # dy_dt = [phi_dot, self.motor_torque(t)-phi_dot * np.abs(phi_dot)]
-        # dy_dt = [phi_dot, -phi]
         return dy_dt
 
     def lift_force(self, phi_dot):
@@ -161,9 +160,11 @@ class RobotSimulation:
         """
         return np.abs(0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * (phi_dot ** 2))
 
-    def solve_dynamics(self):#, phiarr, phidotarr, phiddotarr, angarr, timearr):
+    def solve_dynamics(self, *args):
         """
         solves the ODE
+        :param args: if given, it must be of the format [phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr]
+
         :return:
         """
         phi_0, phi_dot_0 = self.phi0, self.phi_dot0
@@ -190,25 +191,24 @@ class RobotSimulation:
         time = np.concatenate(times_between_zero_cross)
         phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
         ang = np.concatenate(ang)
-
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
-        # phiarr.append(phi)
-        # phidotarr.append(phi_dot)
-        # phiddotarr.append(phi_ddot)
-        # angarr.append(ang)
-        # timearr.append(time)
-        # plot(time, phi, phi_dot, phi_ddot, self.motor_torque(0), self.phi0, self.phi_dot0)
+        if args:
+            # we assume phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr = args
+            args[0].append(phi)
+            args[1].append(phi_dot)
+            args[2].append(phi_ddot)
+            args[3].append(ang)
+            args[4].append(time)
 
 
-if __name__ == '__main__':
-    phi_arr, phi_dot_arr, phi_ddot_arr, angarr, timearr = [], [], [], [], []
+def check_this_torque(torque):
+    phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr = [], [], [], [], []
     phi0, phidot0 = 0, 0.01
     start_t, end_t, delta_t = 0, 0.05, 0.001
     sim = RobotSimulation()
-    for action in 0.02 * (np.sin(2 * np.pi * np.linspace(0, 3, 60))):
-        # print(f"a={action:.3f}, start_t={start_t:.3f}, end_t={end_t:.3f},alpha={sim.alpha:.3f}")
+    for action in torque:
         sim.set_motor_torque(lambda x: action)
-        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, angarr, timearr)
+        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr)
         phi0, phidot0 = sim.solution[0][-1], sim.solution[1][-1]
         start_t = end_t
         end_t += 0.05
@@ -217,10 +217,15 @@ if __name__ == '__main__':
     phi_arr = np.concatenate(phi_arr)
     phi_dot_arr = np.concatenate(phi_dot_arr)
     phi_ddot_arr = np.concatenate(phi_ddot_arr)
-    angle_arr = np.concatenate(angarr)
-    timearr = np.concatenate(timearr)
-    angarr = np.concatenate(angarr)
-    plot_all(timearr, phi_arr, phi_dot_arr, phi_ddot_arr, angarr, 0, 0, 0)
+    angle_arr = np.concatenate(ang_arr)
+    time_arr = np.concatenate(time_arr)
+    ang_arr = np.concatenate(ang_arr)
+    plot_all(time_arr, phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, 0, 0, 0)
+
+
+if __name__ == '__main__':
+    torque = 0.02 * (np.cos(2 * np.pi * np.linspace(0, 3, 60)))
+    check_this_torque(torque)
 
     # class Solver():
     #     def __init__(self):

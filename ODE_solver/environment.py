@@ -5,7 +5,7 @@ from simulation import RobotSimulation
 
 
 class WingEnv(Env):
-    def __init__(self, min_torque=-1, max_torque=1, min_phi=0, max_phi=2 * np.pi):
+    def __init__(self, min_torque=-1, max_torque=1, min_phi=0, max_phi=np.pi):
         """
         the action space is a continuous torque value
         the observation space is currently a continuous value for phi (later I will add psi, theta)
@@ -14,8 +14,16 @@ class WingEnv(Env):
         :param min_phi: the minimal rotation angle
         :param max_phi: the maximal rotation angle
         """
+        self.state = 0  # initial phi state
+        self.action = 0.0  # initial torque value
+        self.rounds = 20  # arbitrary number of rounds
         self.iters = 0
+        self.time_window = 0.05
+
+        self.info = {}
+
         self.max_approx_torque = 0.02
+        self.max_action_diff = 0.1 * self.max_approx_torque
 
         self.max_torque = max_torque
         self.min_torque = min_torque
@@ -23,17 +31,12 @@ class WingEnv(Env):
         self.min_phi = min_phi
         self.low = np.array([-1.0])
         self.high = np.array([1.0])
-
         self.action_space = Box(self.low, self.high)
         self.observation_space = Box(np.array([-np.inf]), np.array([np.inf]))
-        self.state = 0  # initial phi state
-        self.action = 0.0  # initial torque value
-        self.rounds = 20  # arbitrary number of rounds
-        self.collected_reward = []
-        self.simulation = RobotSimulation()
-        self.time_window = 0.05
 
-        self.max_action_diff = 0.1
+        self.collected_reward = []
+
+        self.simulation = RobotSimulation()
 
     def trim_phi(self, phi):
         """
@@ -45,12 +48,11 @@ class WingEnv(Env):
         phi = (np.clip(phi, self.min_phi, self.max_phi) - half) / half
         return phi
 
-    def step(self, action):
+    def step(self, action: np.ndarray):
         action *= self.max_approx_torque
         self.iters += 1
         done = False if self.rounds > 0 else True
         self.rounds -= 1
-        info = {}
 
         # calculate the new phi:
         self.simulation.set_motor_torque(lambda x: action)
@@ -60,28 +62,41 @@ class WingEnv(Env):
         self.state = np.float32(last_phi)
 
         # calculate the reward:
-        reward = self.simulation.lift_force(last_phi_dot).mean()  # averaging all forces of the time window
+        # TODO change last_phi_dot to phi_dot
+        reward = self.simulation.lift_force(last_phi_dot).mean()
 
+        # punish w.r.t bad phi values
         surpass_max_reward = np.where(phi > self.max_phi, np.abs(phi - self.max_phi), 0)
         surpass_min_reward = np.where(phi < self.min_phi, np.abs(phi - self.min_phi), 0)
+        surpass_reward = surpass_min_reward.sum() + surpass_max_reward.sum()
+        reward -= surpass_reward
 
-        surpass_total_reward = surpass_min_reward.sum() + surpass_max_reward.sum()
-        reward -= surpass_total_reward
-
+        # punish w.r.t to large changes to the torque
         action_norm = np.linalg.norm(self.action - action)
         if action_norm > self.max_action_diff:
-            reward -= action_norm
+            reward -= action_norm * reward
         self.collected_reward.append(reward)
+
+        # TODO: add grid plot of sum of rewards to evalute the model w.r.t Acos(wt) - "Energy landscape"
+        # TODO: check how to access the loss to add regularization - ask Aviv maybe
+        # TODO: add minimal work to the reward - see image on iPhone
+        # TODO: is it ok that the state is only the LAST phi?
 
         # update time window and init cond for next iterations
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.time_window)
         self.simulation.set_init_cond(last_phi, last_phi_dot)
-        if self.iters % 10 == 0: print(f"[{self.iters}] |"
-                                       f" s={self.state:.4f} |"
-                                       f" a={action[0]:.4f} |"
-                                       f" r={reward:.4f} |")
+        self.info = {
+            'iter': self.iters,
+            'state': self.state,
+            'action': self.action,
+            'reward': reward
+        }
+        if self.iters % 100 == 0: print(f"[{self.iters}] |"
+                                        f" s={self.state:.4f} |"
+                                        f" a={action.item():.4f} |"
+                                        f" r={reward.item():.4f} |")
         self.action = action  # updating new action
-        return np.array([self.state]), reward, done, info
+        return np.array([self.state]), reward.item(), done, self.info
 
     def render(self, mode="human"):
         pass
@@ -90,4 +105,5 @@ class WingEnv(Env):
         self.state = 0.0
         self.action = 0.0
         self.rounds = 20
+        self.collected_reward = []
         return np.array([self.state]).astype(np.float32)

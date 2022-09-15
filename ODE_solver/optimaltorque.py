@@ -11,11 +11,11 @@ check_env(env)
 env.reset()
 model = PPO("MlpPolicy", env)
 model.learn(total_timesteps=10_000)
-model.save("PPO")
+model.save("PPO_10k")
 del model
 # %%
 obs = env.reset()
-model = PPO.load("PPO.zip")
+model = PPO.load("PPO_10k.zip")
 R, S, A = [], [], []
 for i in range(1000):
     action, _states = model.predict(obs)
