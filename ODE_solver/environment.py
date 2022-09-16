@@ -62,8 +62,7 @@ class WingEnv(Env):
         self.state = np.float32(last_phi)
 
         # calculate the reward:
-        # TODO change last_phi_dot to phi_dot
-        reward = self.simulation.lift_force(last_phi_dot).mean()
+        reward = self.simulation.lift_force(phi_dot).mean()
 
         # punish w.r.t bad phi values
         surpass_max_reward = np.where(phi > self.max_phi, np.abs(phi - self.max_phi), 0)
@@ -72,15 +71,10 @@ class WingEnv(Env):
         reward -= surpass_reward
 
         # punish w.r.t to large changes to the torque
-        action_norm = np.linalg.norm(self.action - action)
-        if action_norm > self.max_action_diff:
-            reward -= action_norm * reward
+        # action_norm = np.linalg.norm(self.action - action)
+        # if action_norm > self.max_action_diff:
+        #     reward -= action_norm * reward
         self.collected_reward.append(reward)
-
-        # TODO: add grid plot of sum of rewards to evalute the model w.r.t Acos(wt) - "Energy landscape"
-        # TODO: check how to access the loss to add regularization - ask Aviv maybe
-        # TODO: add minimal work to the reward - see image on iPhone
-        # TODO: is it ok that the state is only the LAST phi?
 
         # update time window and init cond for next iterations
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.time_window)

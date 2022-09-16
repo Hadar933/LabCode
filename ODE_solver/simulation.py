@@ -33,38 +33,6 @@ RADIAN45 = np.pi / 4
 RADIAN135 = 3 * RADIAN45
 
 
-def plot_all(time, phi, phi_dot, phi_ddot, alpha, torque, phi0, phidot0):
-    """
-    plots the given data in three separate graphs
-    """
-    fig, axs = plt.subplots(4, 1)
-    fig.set_size_inches(7, 9)
-    fig.suptitle(
-        r"$\ddot \phi = a\tau_z -b\dot \phi^2$ " + "\n" +
-        r"$\phi_0=$" + f"{phi0:.3f}[rad], " +
-        r"$\dot \phi_0=$" + f"{phidot0:.3f}[rad/sec], " +
-        r"$\tau_z=$" + f"{torque:.3f}[N/m]" + "\n" +
-        r"$a=\frac{1}{2mL_{aero}^2}, b=\frac{1}{2mL_{aero}^2}\rho_{air} A_{wing} C_{drag}L^2$" + "\n"
-    )
-    axs[0].plot(time, phi, 'red', linewidth=2)
-    axs[0].set(ylabel=r'$\phi$ [rad]')
-
-    axs[1].plot(time, phi_dot, 'orange', linewidth=2)
-    axs[1].set(ylabel=r'$\dot \phi$ [rad/sec]')
-
-    axs[2].plot(time, phi_ddot, 'green', linewidth=2)
-    axs[2].set(ylabel=r'$\ddot \phi$ [rad/$sec^2$]')
-
-    axs[3].plot(time, alpha, 'blue', linewidth=2)
-    axs[3].set(ylabel=r'$\alpha$')
-    axs[3].set(xlabel='time [sec]')
-
-    for ax in axs.flat:
-        ax.grid()
-        # ax.ticklabel_format(style='sci', scilimits=(0, 0))
-    plt.show()
-
-
 def phi_dot_zero_crossing_event(t, y):
     """
     this event is given to solve_ivp to track if phi_dot == 0
@@ -155,10 +123,11 @@ class RobotSimulation:
     def lift_force(self, phi_dot):
         """
         calculated the drag force on the wing, which will be used as reward
+        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no?
         :param phi_dot:
         :return:
         """
-        return np.abs(0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * (phi_dot ** 2))
+        return 0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * phi_dot * np.abs(phi_dot)
 
     def solve_dynamics(self, *args):
         """
@@ -174,6 +143,7 @@ class RobotSimulation:
         ang = []
         times_between_zero_cross = []
         sol_between_zero_cross = []
+        lift_force = []
         while start_t < end_t:
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
                             events=phi_dot_zero_crossing_event, max_step=0.01)
@@ -181,6 +151,7 @@ class RobotSimulation:
             ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
+            lift_force.append(self.lift_force(sol.y[1]))
             if sol.status == ZERO_CROSSING:
                 start_t = sol.t[-1] + delta_t
                 phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
@@ -191,88 +162,69 @@ class RobotSimulation:
         time = np.concatenate(times_between_zero_cross)
         phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
         ang = np.concatenate(ang)
+        lift_force = np.concatenate(lift_force)
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
         if args:
-            # we assume phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr = args
+            # we assume phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr,force_arr = args
             args[0].append(phi)
             args[1].append(phi_dot)
             args[2].append(phi_ddot)
             args[3].append(ang)
             args[4].append(time)
+            args[5].append(lift_force)
 
+#
+# if __name__ == '__main__':
+#     torque = 0.02 * (np.cos(2 * np.pi * np.linspace(0, 2, 60)))
+#     torque_name = r"$0.02cos(2\pi t)$"
+#     check_simulation_given_torque(torque, torque_name)
 
-def check_this_torque(torque):
-    phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr = [], [], [], [], []
-    phi0, phidot0 = 0, 0.01
-    start_t, end_t, delta_t = 0, 0.05, 0.001
-    sim = RobotSimulation()
-    for action in torque:
-        sim.set_motor_torque(lambda x: action)
-        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr)
-        phi0, phidot0 = sim.solution[0][-1], sim.solution[1][-1]
-        start_t = end_t
-        end_t += 0.05
-        sim.set_init_cond(phi0, phidot0)
-        sim.set_time(start_t, end_t)
-    phi_arr = np.concatenate(phi_arr)
-    phi_dot_arr = np.concatenate(phi_dot_arr)
-    phi_ddot_arr = np.concatenate(phi_ddot_arr)
-    angle_arr = np.concatenate(ang_arr)
-    time_arr = np.concatenate(time_arr)
-    ang_arr = np.concatenate(ang_arr)
-    plot_all(time_arr, phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, 0, 0, 0)
-
-
-if __name__ == '__main__':
-    torque = 0.02 * (np.cos(2 * np.pi * np.linspace(0, 3, 60)))
-    check_this_torque(torque)
-
-    # class Solver():
-    #     def __init__(self):
-    #         self.torque = 0
-    #
-    #     def set_torque(self, new):
-    #         self.torque = new
-    #
-    #     def phi_derivatives(self, t, y):
-    #         """
-    #         A function that defines the ODE that is to be solved: I * phi_ddot = tau_z - tau_drag.
-    #         We think of y as a vector y = [phi,phi_dot]. the ode solves dy/dt = f(y,t)
-    #         """
-    #         # for exact values use
-    #         a = 1090179.6616082331
-    #         b = 271.9406850484702
-    #
-    #         phi, phi_dot = y[0], y[1]
-    #         # dy_dt = [phi_dot, a * self.torque - b * phi_dot * np.abs(phi_dot)]
-    #         dy_dt = [phi_dot, -phi]
-    #         return dy_dt
-    #
-    # phi_arr = []
-    # phi_dot_arr = []
-    # phi_ddot_arr = []
-    # phi_0 = 0
-    # phi_dot_0 = 0.01
-    # start_t = 0
-    # end_t = 50
-    # delta_t = 0.01
-    # s = Solver()
-    #
-    # for torque in [0.02]:
-    #     s.set_torque(torque)
-    #     sol = solve_ivp(s.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0])
-    #     phi, phi_dot = sol.y
-    #     _, phi_ddot = s.phi_derivatives(0, [phi, phi_dot])
-    #     phi_arr.append(phi)
-    #     phi_dot_arr.append(phi_dot)
-    #     phi_ddot_arr.append(phi_ddot)
-    #
-    #     phi_0 = phi[-1]
-    #     phi_dot_0 = phi_dot[-1]
-    #     start_t = end_t
-    #     end_t += 0.05
-    #
-    # phi_arr = np.concatenate(phi_arr)
-    # phi_dot_arr = np.concatenate(phi_dot_arr)
-    # phi_ddot_arr = np.concatenate(phi_ddot_arr)
-    # plot(np.linspace(0, end_t, len(phi_arr)), phi_arr, phi_dot_arr, phi_ddot_arr, 0, 0, 0)
+# class Solver():
+#     def __init__(self):
+#         self.torque = 0
+#
+#     def set_torque(self, new):
+#         self.torque = new
+#
+#     def phi_derivatives(self, t, y):
+#         """
+#         A function that defines the ODE that is to be solved: I * phi_ddot = tau_z - tau_drag.
+#         We think of y as a vector y = [phi,phi_dot]. the ode solves dy/dt = f(y,t)
+#         """
+#         # for exact values use
+#         a = 1090179.6616082331
+#         b = 271.9406850484702
+#
+#         phi, phi_dot = y[0], y[1]
+#         # dy_dt = [phi_dot, a * self.torque - b * phi_dot * np.abs(phi_dot)]
+#         dy_dt = [phi_dot, -phi]
+#         return dy_dt
+#
+# phi_arr = []
+# phi_dot_arr = []
+# phi_ddot_arr = []
+# phi_0 = 0
+# phi_dot_0 = 0.01
+# start_t = 0
+# end_t = 50
+# delta_t = 0.01
+# s = Solver()
+#
+# for torque in [0.02]:
+#     s.set_torque(torque)
+#     sol = solve_ivp(s.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0])
+#     phi, phi_dot = sol.y
+#     _, phi_ddot = s.phi_derivatives(0, [phi, phi_dot])
+#     phi_arr.append(phi)
+#     phi_dot_arr.append(phi_dot)
+#     phi_ddot_arr.append(phi_ddot)
+#
+#     phi_0 = phi[-1]
+#     phi_dot_0 = phi_dot[-1]
+#     start_t = end_t
+#     end_t += 0.05
+#
+# phi_arr = np.concatenate(phi_arr)
+# phi_dot_arr = np.concatenate(phi_dot_arr)
+# phi_ddot_arr = np.concatenate(phi_ddot_arr)
+# plot(np.linspace(0, end_t, len(phi_arr)), phi_arr, phi_dot_arr, phi_ddot_arr, 0, 0, 0)
