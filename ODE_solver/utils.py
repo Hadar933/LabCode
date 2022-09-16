@@ -9,11 +9,12 @@ from tqdm import tqdm
 # TODO: add minimal work to the reward - see image on iPhone                                       (X)
 # TODO: is it ok that the state is only the LAST phi?                                              (X)
 # TODO: check that the lift force makes sense                                                      (V)
+# TODO: make sure atol and rtol are calibrated in solve_ivp                                        (X)
 
 
 def plot_all(time, phi, phi_dot, phi_ddot, alpha, force, torque, phi0, phidot0):
     """
-    plots the given data in three separate graphs
+    plots the given data
     """
     fig, axs = plt.subplots(5, 1)
     fig.set_size_inches(7, 9)
@@ -51,7 +52,9 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
     solves the ODE in sequential order given the torque values and plots all relevant
     angles / forces / etc..
     :param torque: a np array that contains motor torque values to follow
-    :return:
+    :param torque_name: a string that represents the torque function (for the plot)
+    :param do_plot: True iff we wish to plot all the saved values
+    :return: arrays that represents phi,phi_dot,phi_ddot,time,alpha,lift force
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr = [], [], [], [], [], []
     start_t, end_t = 0, 0.05
@@ -82,6 +85,10 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
 
 
 def energy_landscape():
+    """
+    scans a range of amplitudes A={a_1,a_2,...,a_N} and frequencies F={f_1,f_2,...,f_N} and calculates the
+    accumulated lift force that was generated using torque = a*cos(2*pi*f*t) for end_time seconds
+    """
     # might want to vectorize later
     N = 30
     end_time = 60  # seconds
@@ -104,7 +111,8 @@ def energy_landscape():
     grid = np.array(all_rewards).reshape((N, N))
     h = plt.contourf(freq_array, amplitude_arr, grid)
     # plt.axis('scaled')
-    plt.title(r"Accumulated Lift reward $\langle F_{lift} \rangle =\frac{1}{2}\rho_{air} A_{wing} C_{drag}\dot\phi^2$")
+    plt.title(r"Accumulated Lift reward $\langle F_{lift} \rangle = "
+              r"\langle \frac{1}{2}\rho_{air} A_{wing} C_{drag}\dot\phi^2 \rangle$")
     plt.xlabel("Frequency [Hz]")
     plt.ylabel("Amplitude [Nm]")
     plt.colorbar()

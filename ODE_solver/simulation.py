@@ -2,21 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
-# TODO:
-"""
-1. we might want to regularize the torque's gradient (changes in torque cannot be to large, as to account for the motor's
-capabilities)
-2. the reward of minimal reward should be of the absolute value (Arion's paper - elastic bound condition)
-3. add event of sign(phi_dot)
-4. make sure atol and rtol are calibrated
-"""
-
-"""
-###################################################################################################################
-                                                Constants: 
-###################################################################################################################
-"""
-
 MASS = 2.6e-4  # from the hummingbird paper
 WING_LENGTH = 0.07  # meters
 AERODYNAMIC_CENTER = 0.7 * WING_LENGTH
