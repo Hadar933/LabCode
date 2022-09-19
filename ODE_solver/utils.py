@@ -5,12 +5,17 @@ from tqdm import tqdm
 
 
 # TODO: whats up with the time values? inconsistent                                                (V)
+# TODO: check that the lift force makes sense                                                      (V)
+
+# TODO: make sense of all the Tensorboard loss values                                              (X)
 # TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (X)
 # TODO: check how to access the loss to add regularization - ask Aviv maybe                        (X)
 # TODO: add minimal work to the reward - see image on iPhone                                       (X)
 # TODO: is it ok that the state is only the LAST phi?                                              (X)
-# TODO: check that the lift force makes sense                                                      (V)
 # TODO: make sure atol and rtol are calibrated in solve_ivp                                        (X)
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(x))
 
 
 def plot_all(time, torque, phi, phi_dot, phi_ddot, alpha, force, torque_name, phi0, phidot0):
@@ -61,7 +66,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
     :return: arrays that represents phi,phi_dot,phi_ddot,time,alpha,lift force
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
-    start_t, end_t = 0, 10 * delta_t # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
+    start_t, end_t = 0, 10 * delta_t  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
     sim = RobotSimulation(end_t=end_t)
 
     phi0_name = sim.phi0
@@ -73,7 +78,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
         phi, phi_dot = sim.solution
         phi0, phidot0 = phi[-1], phi_dot[-1]
         start_t = end_t
-        end_t += 10 * delta_t # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
+        end_t += 10 * delta_t  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
         sim.set_init_cond(phi0, phidot0)
         sim.set_time(start_t, end_t)
 
@@ -123,11 +128,11 @@ def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
 if __name__ == '__main__':
     end_t = 1
     n_steps = 500
-    t = np.linspace(0, end_t, n_steps)
-    for f in [1, 2, 5, 10, 20, 32]:
-        tau = 0.02 * np.cos(2 * np.pi * f * t)
-        tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
-        _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
-        print(f"{tau_name}, F = {np.mean(force_arr)}")
+    # t = np.linspace(0, end_t, n_steps)
+    # for f in [1, 2, 5, 10, 20, 32]:
+    #     tau = 0.02 * np.cos(2 * np.pi * f * t)
+    #     tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
+    #     _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
+    #     print(f"{tau_name}, F = {np.mean(force_arr)}")
 
-    # energy_landscape(n_steps, end_t, 0.025, 32, 10)
+    energy_landscape(n_steps, end_t, 0.025, 32, 10)

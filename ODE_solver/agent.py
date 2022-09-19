@@ -4,7 +4,7 @@ from environment import WingEnv
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
 
-timesteps = 1_000
+timesteps = 15_000
 steps_str = f"{str(timesteps)[:-3]}k_regularized_action"
 # %%
 env = WingEnv()
@@ -31,18 +31,18 @@ for i in range(1000):
 env.close()
 # %%
 fig, axs = plt.subplots(3, 1)
-fig.set_size_inches(8, 8)
+fig.set_size_inches(18, 8)
 
 fig.suptitle(
     f"Reward, Action and State (Top to Bottom) - PP0 {steps_str} steps (SB3)"
 )
-axs[0].plot(range(1000), R,linewidth=0.8)
+axs[0].plot(range(1000), R, linewidth=0.8)
 axs[0].set(ylabel=r"Reward [Arb.U]")
 
-axs[1].plot(range(1000), A,linewidth=0.8)
+axs[1].plot(range(1000), A, linewidth=0.8)
 axs[1].set(ylabel=r"Action $\tau [Nm]$")
 
-axs[2].plot(range(1000), S,linewidth=0.8)
+axs[2].plot(range(1000), S, linewidth=0.8)
 axs[2].set(ylabel=r"State $\phi [rad]$")
 axs[2].axhline(y=np.pi, color='r', linestyle='--')
 axs[2].text(x=900, y=np.pi + 0.3, s=r"$\phi=\pi$")

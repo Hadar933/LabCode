@@ -2,6 +2,7 @@ from gym import Env
 from gym.spaces import Box
 import numpy as np
 from simulation import RobotSimulation
+from utils import sigmoid
 
 
 class WingEnv(Env):
@@ -18,12 +19,12 @@ class WingEnv(Env):
         self.action = 0.0  # initial torque value
         self.rounds = 20  # arbitrary number of rounds
         self.iters = 0
-        self.time_window = 0.05
+        self.time_window = 0.02
 
         self.info = {}
 
         self.max_approx_torque = 0.02
-        self.max_action_diff = 0.1 * self.max_approx_torque
+        self.max_action_diff = 0.05 * self.max_approx_torque
 
         self.max_torque = max_torque
         self.min_torque = min_torque
@@ -62,23 +63,28 @@ class WingEnv(Env):
         self.state = np.float32(last_phi)
 
         # calculate the reward:
-        reward = self.simulation.lift_force(phi_dot).mean()
+        lift_reward = self.simulation.lift_force(phi_dot).mean()
 
         # punish w.r.t bad phi values
         surpass_max_reward = np.where(phi > self.max_phi, np.abs(phi - self.max_phi), 0)
         surpass_min_reward = np.where(phi < self.min_phi, np.abs(phi - self.min_phi), 0)
-        surpass_reward = surpass_min_reward.sum() + surpass_max_reward.sum()
-        reward -= surpass_reward
+        relative_size = len(surpass_min_reward) + len(surpass_max_reward)
+        angle_reward = surpass_min_reward.sum() + surpass_max_reward.sum()
+        # lift_reward -= angle_reward
 
         # punish w.r.t to large changes to the torque
         action_norm = np.linalg.norm(self.action - action)
+        action_reward = 0
         if action_norm > self.max_action_diff:
-            reward -= 0.1 * reward
+            action_reward = relative_size * action_norm * 100
+
+        reward = lift_reward - angle_reward - action_reward
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.time_window)
         self.simulation.set_init_cond(last_phi, last_phi_dot)
+
         self.info = {
             'iter': self.iters,
             'state': self.state,
@@ -88,9 +94,29 @@ class WingEnv(Env):
         if self.iters % 100 == 0: print(f"[{self.iters}] |"
                                         f" s={self.state:.4f} |"
                                         f" a={action.item():.4f} |"
-                                        f" r={reward.item():.4f} |")
+                                        f" r_lift={lift_reward:.4f} |"
+                                        f" r_phi={angle_reward:.4f} |"
+                                        f" r_tau={action_reward :.4f} |"
+                                        f" r_final={reward.item():.4f} |")
         self.action = action  # updating new action
         return np.array([self.state]), reward.item(), done, self.info
+
+    def shape_reward(self, action, phi, phi_dot):
+        reward = self.simulation.lift_force(phi_dot).mean()
+
+        # punish w.r.t bad phi values
+        surpass_max_reward = np.where(phi > self.max_phi, np.abs(phi - self.max_phi), 0)
+        surpass_min_reward = np.where(phi < self.min_phi, np.abs(phi - self.min_phi), 0)
+        relative_size = len(surpass_min_reward) + len(surpass_max_reward)
+        surpass_reward = surpass_min_reward.sum() + surpass_max_reward.sum()
+        reward -= surpass_reward
+
+        # punish w.r.t to large changes to the torque
+        # action_norm = np.linalg.norm(self.action - action)
+        # if action_norm > self.max_action_diff:
+        #     reward -= relative_size * action_norm
+        # self.collected_reward.append(reward)
+        return reward
 
     def render(self, mode="human"):
         pass
