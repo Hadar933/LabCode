@@ -39,10 +39,10 @@ def plot_all(time, torque, phi, phi_dot, phi_ddot, alpha, force, torque_name, ph
     axs[3].set(ylabel=r'$\alpha$ [rad]')
 
     axs[4].plot(time, force, 'purple', linewidth=2)
-    axs[4].set(ylabel="Force [N]")
+    axs[4].set(ylabel=r"$F_{Lift}$ [N]")
 
     axs[5].plot(time, torque, 'black', linewidth=2)
-    axs[5].set(ylabel="Torque [Nm]")
+    axs[5].set(ylabel=r"$\tau_{z}$ [Nm]")
     axs[5].set(xlabel='time [sec]')
 
     for ax in axs.flat:
@@ -61,7 +61,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
     :return: arrays that represents phi,phi_dot,phi_ddot,time,alpha,lift force
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
-    start_t, end_t = 0, delta_t
+    start_t, end_t = 0, 10 * delta_t # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
     sim = RobotSimulation(end_t=end_t)
 
     phi0_name = sim.phi0
@@ -73,7 +73,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
         phi, phi_dot = sim.solution
         phi0, phidot0 = phi[-1], phi_dot[-1]
         start_t = end_t
-        end_t += delta_t
+        end_t += 10 * delta_t # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
         sim.set_init_cond(phi0, phidot0)
         sim.set_time(start_t, end_t)
 
@@ -107,7 +107,7 @@ def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
                   end='\r')
             torque = a * np.cos(2 * np.pi * f * t)
             torque_name = f"{a:.3f}cos(2" + r"$\pi$" + f"{f:.3f}t)"
-            _, _, _, _, _, force_arr = check_simulation_given_torque(delta_t, torque, torque_name, True)
+            _, _, _, _, _, force_arr = check_simulation_given_torque(delta_t, torque, torque_name, False)
             all_rewards.append(np.mean(force_arr))
     grid = np.array(all_rewards).reshape((n_samples, n_samples))
     h = plt.contourf(freq_array, amplitude_arr, grid)
