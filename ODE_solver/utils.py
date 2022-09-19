@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
-# TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (V)
+# TODO: whats up with the time values? inconsistent                                                (V)
+# TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (X)
 # TODO: check how to access the loss to add regularization - ask Aviv maybe                        (X)
 # TODO: add minimal work to the reward - see image on iPhone                                       (X)
 # TODO: is it ok that the state is only the LAST phi?                                              (X)
@@ -12,17 +13,17 @@ from tqdm import tqdm
 # TODO: make sure atol and rtol are calibrated in solve_ivp                                        (X)
 
 
-def plot_all(time, phi, phi_dot, phi_ddot, alpha, force, torque, phi0, phidot0):
+def plot_all(time, torque, phi, phi_dot, phi_ddot, alpha, force, torque_name, phi0, phidot0):
     """
     plots the given data
     """
-    fig, axs = plt.subplots(5, 1)
-    fig.set_size_inches(7, 9)
+    fig, axs = plt.subplots(6, 1)
+    fig.set_size_inches(18, 12)
     fig.suptitle(
         r"$\ddot \phi = a\tau_z -b\dot \phi^2$ " + "\n" +
         r"$\phi_0=$" + f"{phi0:.3f}[rad], " +
         r"$\dot \phi_0=$" + f"{phidot0:.3f}[rad/sec], " +
-        r"$\tau_z=$" + f"{torque}[N/m]" + "\n" +
+        r"$\tau_z=$" + f"{torque_name}[N/m]" + "\n" +
         r"$a=\frac{1}{2mL_{aero}^2}, b=\frac{1}{2mL_{aero}^2}\rho_{air} A_{wing} C_{drag}L^2$" + "\n"
     )
     axs[0].plot(time, phi, 'red', linewidth=2)
@@ -39,7 +40,10 @@ def plot_all(time, phi, phi_dot, phi_ddot, alpha, force, torque, phi0, phidot0):
 
     axs[4].plot(time, force, 'purple', linewidth=2)
     axs[4].set(ylabel="Force [N]")
-    axs[4].set(xlabel='time [sec]')
+
+    axs[5].plot(time, torque, 'black', linewidth=2)
+    axs[5].set(ylabel="Torque [Nm]")
+    axs[5].set(xlabel='time [sec]')
 
     for ax in axs.flat:
         ax.grid()
@@ -47,7 +51,7 @@ def plot_all(time, phi, phi_dot, phi_ddot, alpha, force, torque, phi0, phidot0):
     plt.show()
 
 
-def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot: bool):
+def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str, do_plot: bool):
     """
     solves the ODE in sequential order given the torque values and plots all relevant
     angles / forces / etc..
@@ -56,20 +60,20 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
     :param do_plot: True iff we wish to plot all the saved values
     :return: arrays that represents phi,phi_dot,phi_ddot,time,alpha,lift force
     """
-    phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr = [], [], [], [], [], []
-    start_t, end_t = 0, 0.05
-    sim = RobotSimulation()
+    phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
+    start_t, end_t = 0, delta_t
+    sim = RobotSimulation(end_t=end_t)
 
     phi0_name = sim.phi0
     phi_dot0_name = sim.phi_dot0
 
     for action in torque:
         sim.set_motor_torque(lambda x: action)
-        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr)
+        sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr)
         phi, phi_dot = sim.solution
         phi0, phidot0 = phi[-1], phi_dot[-1]
         start_t = end_t
-        end_t += 0.05
+        end_t += delta_t
         sim.set_init_cond(phi0, phidot0)
         sim.set_time(start_t, end_t)
 
@@ -78,37 +82,34 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
     phi_ddot_arr = np.concatenate(phi_ddot_arr)
     time_arr = np.concatenate(time_arr)
     ang_arr = np.concatenate(ang_arr)
-    force_arr = np.concatenate(force_arr)
-    if do_plot: plot_all(time_arr, phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, force_arr,
+    force_arr = np.concatenate(force_arr)  # TODO: this array behaves weird.
+    torque_arr = np.concatenate(torque_arr)
+    if do_plot: plot_all(time_arr, torque_arr, phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, force_arr,
                          torque_name, phi0_name, phi_dot0_name)
     return phi_arr, phi_dot_arr, phi_ddot_arr, time_arr, ang_arr, force_arr
 
 
-def energy_landscape():
+def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
     """
     scans a range of amplitudes A={a_1,a_2,...,a_N} and frequencies F={f_1,f_2,...,f_N} and calculates the
     accumulated lift force that was generated using torque = a*cos(2*pi*f*t) for end_time seconds
     """
-    # might want to vectorize later
-    N = 30
-    end_time = 60  # seconds
-    max_amplitude = 0.025  # Nm
-    max_freq = 40  # Hz
-    amplitude_arr = np.linspace(0, max_amplitude, N)  # (N,1)
-    freq_array = np.linspace(0, max_freq, N)  # (N,1)
+    delta_t = end_time / n_timesteps
+    t = np.linspace(0, end_time, n_timesteps)
+    amplitude_arr = np.linspace(0.005, max_amplitude, n_samples)  # (N,1)
+    freq_array = np.linspace(1, max_freq, n_samples)  # (N,1)
     all_rewards = []
     for i, a in enumerate(amplitude_arr):
         for j, f in enumerate(freq_array):
-            print(f"[{j + i * N + 1}/{N * N}] "
+            print(f"[{j + i * n_samples + 1}/{n_samples * n_samples}] "
                   f"A=[{a:.4f}/{max_amplitude}],"
                   f" f=[{f:.4f}/{max_freq}]",
                   end='\r')
-            t = np.linspace(0, end_time, N)  # (N,1)
-            torque = a * np.cos(2 * np.pi * f * t)  # (N,1)
+            torque = a * np.cos(2 * np.pi * f * t)
             torque_name = f"{a:.3f}cos(2" + r"$\pi$" + f"{f:.3f}t)"
-            _, _, _, _, _, force_arr = check_simulation_given_torque(torque, torque_name, False)
+            _, _, _, _, _, force_arr = check_simulation_given_torque(delta_t, torque, torque_name, True)
             all_rewards.append(np.mean(force_arr))
-    grid = np.array(all_rewards).reshape((N, N))
+    grid = np.array(all_rewards).reshape((n_samples, n_samples))
     h = plt.contourf(freq_array, amplitude_arr, grid)
     # plt.axis('scaled')
     plt.title(r"Accumulated Lift reward $\langle F_{lift} \rangle = "
@@ -120,7 +121,13 @@ def energy_landscape():
 
 
 if __name__ == '__main__':
-    # torque = 0.02 * (np.cos(2 * np.pi * np.linspace(0, 2, 60)))
-    # torque_name = r"$0.02cos(2\pi t)$"
-    # check_simulation_given_torque(torque, torque_name, True)
-    energy_landscape()
+    end_t = 1
+    n_steps = 500
+    t = np.linspace(0, end_t, n_steps)
+    for f in [1, 2, 5, 10, 20, 32]:
+        tau = 0.02 * np.cos(2 * np.pi * f * t)
+        tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
+        _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
+        print(f"{tau_name}, F = {np.mean(force_arr)}")
+
+    # energy_landscape(n_steps, end_t, 0.025, 32, 10)

@@ -29,7 +29,7 @@ def phi_dot_zero_crossing_event(t, y):
 
 
 class RobotSimulation:
-    def __init__(self, motor_torque=lambda x: 0, alpha=RADIAN45, phi0=0.0, phi_dot0=0.01, start_t=0, end_t=0.05,
+    def __init__(self, motor_torque=lambda x: 0, alpha=RADIAN45, phi0=0.0, phi_dot0=1e-4, start_t=0, end_t=0.05,
                  delta_t=0.001) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
@@ -129,14 +129,16 @@ class RobotSimulation:
         times_between_zero_cross = []
         sol_between_zero_cross = []
         lift_force = []
+        torque = []
         while start_t < end_t:
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
-                            events=phi_dot_zero_crossing_event, max_step=0.01)
+                            events=phi_dot_zero_crossing_event)
             self.solution = sol.y
             ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
             lift_force.append(self.lift_force(sol.y[1]))
+            torque.append(self.motor_torque(0) * np.ones(len(sol.t)))
             if sol.status == ZERO_CROSSING:
                 start_t = sol.t[-1] + delta_t
                 phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
@@ -148,6 +150,7 @@ class RobotSimulation:
         phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
         ang = np.concatenate(ang)
         lift_force = np.concatenate(lift_force)
+        torque = np.concatenate(torque)
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
         if args:
             # we assume phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr,force_arr = args
@@ -157,12 +160,11 @@ class RobotSimulation:
             args[3].append(ang)
             args[4].append(time)
             args[5].append(lift_force)
+            args[6].append(torque)
 
 #
 # if __name__ == '__main__':
-#     torque = 0.02 * (np.cos(2 * np.pi * np.linspace(0, 2, 60)))
-#     torque_name = r"$0.02cos(2\pi t)$"
-#     check_simulation_given_torque(torque, torque_name)
+
 
 # class Solver():
 #     def __init__(self):

@@ -71,9 +71,9 @@ class WingEnv(Env):
         reward -= surpass_reward
 
         # punish w.r.t to large changes to the torque
-        # action_norm = np.linalg.norm(self.action - action)
-        # if action_norm > self.max_action_diff:
-        #     reward -= action_norm * reward
+        action_norm = np.linalg.norm(self.action - action)
+        if action_norm > self.max_action_diff:
+            reward -= 0.1 * reward
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
