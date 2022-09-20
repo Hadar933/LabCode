@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
-MASS = 2.6e-4  # from the hummingbird paper
+MASS = 2.6e-4 # from the hummingbird paper
 WING_LENGTH = 0.07  # meters
 AERODYNAMIC_CENTER = 0.7 * WING_LENGTH
 GYRATION_RADIUS = 0.6 * WING_LENGTH  # we use this for moment of inertia
@@ -93,7 +93,7 @@ class RobotSimulation:
         """
         the drag moment
         """
-        return 0.5 * AIR_DENSITY * WING_AREA * self.c_drag() * GYRATION_RADIUS * phi_dot * np.abs(phi_dot)
+        return 0.5 * AIR_DENSITY * WING_AREA * self.c_drag() * (GYRATION_RADIUS ** 2) * phi_dot * np.abs(phi_dot)
 
     def phi_derivatives(self, t, y):
         """
