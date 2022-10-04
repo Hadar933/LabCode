@@ -6,10 +6,10 @@ from tqdm import tqdm
 
 # TODO: whats up with the time values? inconsistent                                                (V)
 # TODO: check that the lift force makes sense                                                      (V)
+# TODO: check how to access the loss to add regularization - ask Aviv maybe                        (V) - avoid
 
 # TODO: make sense of all the Tensorboard loss values                                              (X)
 # TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (X)
-# TODO: check how to access the loss to add regularization - ask Aviv maybe                        (X)
 # TODO: add minimal work to the reward - see image on iPhone                                       (X)
 # TODO: is it ok that the state is only the LAST phi?                                              (X)
 # TODO: make sure atol and rtol are calibrated in solve_ivp                                        (X)
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     t = np.linspace(0, end_t, n_steps)
     for f in [5]:
         # tau = 0.02 * np.sin(2 * np.pi * f * t)
-        tau = [0] * n_steps
+        tau = ([0] * (n_steps//2)) + ([0.02] * (n_steps//2))
         tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
         _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
         print(f"{tau_name}, F = {np.mean(force_arr)}")
