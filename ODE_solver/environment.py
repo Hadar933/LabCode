@@ -22,15 +22,14 @@ class WingEnv(Env):
         self.iters = 0
         self.time_window = 0.02
         self.history_size = 10
-        self.init_pos = np.zeros(1)
 
         self.info = {}
 
         self.max_approx_torque = 0.02
         self.max_action_diff = 0.05 * self.max_approx_torque
 
-        self.max_torque = max_torque
-        self.min_torque = min_torque
+        # self.max_torque = max_torque
+        # self.min_torque = min_torque
         self.max_phi = max_phi
         self.min_phi = min_phi
         self.low = np.array([-1.0])
@@ -54,6 +53,8 @@ class WingEnv(Env):
     #     half = np.max(phi) / 2
     #     phi = (np.clip(phi, self.min_phi, self.max_phi) - half) / half
     #     return phi
+    def delete_history(self):
+        self.all_phi_history = np.array([])
 
     def step(self, action: np.ndarray):
         action *= self.max_approx_torque

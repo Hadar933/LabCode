@@ -4,7 +4,7 @@ from environment import WingEnv
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
 
-timesteps = 15_000
+timesteps = 1_000
 steps_str = f"{str(timesteps)[:-3]}k_regularized_action"
 # %%
 print("Testing Environment")
@@ -26,6 +26,7 @@ print("Finished Training Model")
 print("Performing Model Steps")
 
 obs = env.reset()
+env.delete_history()
 model = PPO.load(f"PPO_{steps_str}.zip")
 R, S, A = [], [], []
 for i in range(1000):
@@ -47,7 +48,7 @@ fig, axs = plt.subplots(3, 1)
 fig.set_size_inches(18, 8)
 
 fig.suptitle(
-    f"Reward, Action and State (Top to Bottom) - PP0 {steps_str} steps (SB3)"
+    f"PP0 {steps_str} steps (SB3)"
 )
 axs[0].plot(range(1000), R, linewidth=0.8)
 axs[0].set(ylabel=r"Reward [Arb.U]")
