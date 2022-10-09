@@ -37,7 +37,7 @@ def simulate_steps(env, steps_str, n_steps):
     return R, S, A
 
 
-def plot_steps(R, S, A, steps_str):
+def plot_steps(R, S, A, steps_str, save):
     fig, axs = plt.subplots(3, 1)
     fig.set_size_inches(18, 8)
     fig.suptitle(f"PP0 {steps_str} steps (SB3)")
@@ -51,6 +51,7 @@ def plot_steps(R, S, A, steps_str):
     axs[2].text(x=900, y=np.pi + 0.3, s=r"$\phi=\pi$")
     axs[2].axhline(y=0, color='r', linestyle='--')
     axs[2].text(x=900, y=0.3, s=r"$\phi=0$")
+    if save: plt.savefig(f"PP0 {steps_str} steps (SB3)")
     plt.show()
 
 
@@ -58,5 +59,6 @@ if __name__ == '__main__':
     n_steps = 100_000
     steps_str = f"{str(n_steps)[:-3]}k_regularized_action"
     env = WingEnv()
+    train_model(env, n_steps, steps_str)
     R, S, A = simulate_steps(env, steps_str, n_steps)
-    plot_steps(R, S, A, steps_str)
+    plot_steps(R, S, A, steps_str, True)
