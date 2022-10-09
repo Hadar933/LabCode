@@ -18,7 +18,6 @@ class WingEnv(Env):
         self.all_phi_history = np.array([])
         self.state = 0  # initial phi state
         self.action = 0.0  # initial torque value
-        self.rounds = 20  # arbitrary number of rounds
         self.iters = 0
         self.time_window = 0.02
         self.history_size = 10
@@ -28,8 +27,6 @@ class WingEnv(Env):
         self.max_approx_torque = 0.02
         self.max_action_diff = 0.05 * self.max_approx_torque
 
-        # self.max_torque = max_torque
-        # self.min_torque = min_torque
         self.max_phi = max_phi
         self.min_phi = min_phi
         self.low = np.array([-1.0])
@@ -53,14 +50,13 @@ class WingEnv(Env):
     #     half = np.max(phi) / 2
     #     phi = (np.clip(phi, self.min_phi, self.max_phi) - half) / half
     #     return phi
+
     def delete_history(self):
         self.all_phi_history = np.array([])
 
     def step(self, action: np.ndarray):
         action *= self.max_approx_torque
         self.iters += 1
-        done = False if self.rounds > 0 else True
-        self.rounds -= 1
 
         # calculate the new phi:
         self.simulation.set_motor_torque(lambda x: action)
@@ -111,7 +107,7 @@ class WingEnv(Env):
 
         self.action = action  # updating new action
 
-        return {'phi': self.state}, reward.item(), done, self.info
+        return {'phi': self.state}, reward.item(), False, self.info
 
         # return np.array([self.state]), reward.item(), done, self.info
 
@@ -123,7 +119,6 @@ class WingEnv(Env):
         random_state = [round(random.uniform(self.min_phi, self.max_phi), ndigits=2)]
         self.state = np.array(zero_history + random_state, dtype=np.float32)
         self.action = 0.0
-        self.rounds = 20
         self.collected_reward = []
         return {
             'phi': self.state
