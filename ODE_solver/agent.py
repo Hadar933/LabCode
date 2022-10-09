@@ -11,10 +11,13 @@ def test_env(env):
     print("Finished Testing Environment")
 
 
-def train_model(env, timesteps, steps_str):
+def train_model(env, timesteps, steps_str, use_tensorboarad_in_colab):
     print("Training Model")
     env.reset()
-    model = PPO("MultiInputPolicy", env)
+    if use_tensorboarad_in_colab:
+        model = PPO("MultiInputPolicy", env, device='cuda', tensorboard_log='/content/tensorboard')
+    else:
+        model = PPO("MultiInputPolicy", env)
     model.learn(total_timesteps=timesteps)
     model.save(f"PPO_{steps_str}")
     del model
