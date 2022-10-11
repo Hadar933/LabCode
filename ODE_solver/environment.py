@@ -69,23 +69,24 @@ class WingEnv(Env):
         np_torque = np.array(self.torque_history).astype(np.float32)
 
         # calculate the reward:
-        lift_reward = self.simulation.lift_force(phi_dot).mean()  # TODO: does this even affects the outcome?
-        lift_reward_relative_size = len(phi_dot)
+        lift_reward = self.simulation.lift_force(phi_dot).mean()  # TODO: why does this gets negative values?
+        lift_rel_size = len(phi_dot)
 
         # punish w.r.t bad phi values
         surpass_max_phi = np.where(np_phi > self.max_phi, np.abs(np_phi - self.max_phi), 0)
         surpass_min_phi = np.where(np_phi < self.min_phi, np.abs(np_phi - self.min_phi), 0)
-        phi_reward_relative_size = len(np.nonzero(surpass_min_phi)[0]) + len(
+        phi_rel_size = len(np.nonzero(surpass_min_phi)[0]) + len(
             np.nonzero(surpass_max_phi)[0])  # TODO: this can be zero
         phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
 
         # punish w.r.t to large changes to the torque
         action_norm = np.abs(np_torque[:-1] - action)
         surpass_torque_diff = np.where(action_norm > self.max_action_diff, action_norm, 0)
-        torque_reward_relative_size = len(surpass_torque_diff)
+        torque_rel_size = len(surpass_torque_diff.nonzero()[0])
         torque_reward = surpass_torque_diff.sum()
 
-        reward = lift_reward - phi_reward - torque_reward
+        reward = (lift_rel_size * lift_reward - phi_rel_size * phi_reward - torque_rel_size * torque_reward) / (
+                lift_rel_size + phi_rel_size + torque_rel_size)
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
@@ -97,33 +98,40 @@ class WingEnv(Env):
             'state': np_phi[-1],
             'action': np_torque[-1],
             'lift_reward': lift_reward,
+            'lift_rel_size': lift_rel_size,
             'angle_reward': phi_reward,
+            'phi_rel_size': phi_rel_size,
             'torque_reward': torque_reward,
+            'torque_rel_size': torque_rel_size,
             'total_reward': reward.item()
         }
         if self.iters % 100 == 0:
-            self.print_info()
+            self.pretty_print_info()
 
-        obs = {
-            'phi': np_phi,
-            'torque': np_torque
-        }
+        obs = {'phi': np_phi, 'torque': np_torque}
         return obs, reward.item(), done, self.info
 
-    def print_info(self) -> None:
+    def pretty_print_info(self) -> None:
         """
         a friendly function that prints the information of the environment
         """
+        lift_rel = self.info['lift_rel_size']
+        phi_rel = self.info['phi_rel_size']
+        torque_rel = self.info['torque_rel_size']
+        tot = lift_rel + phi_rel + torque_rel
+
+        state = self.info['state']
+        state_in_range = "OK" if self.min_phi <= state <= self.max_phi else "BAD"
         print(f"[{self.info['iter']}] |"
-              f" s={self.info['state']:.4f} |"
+              f" s={state:.2f} ({state_in_range}) |"
               f" a={self.info['action']:.4f} |"
-              f" r_LIFT= {self.info['lift_reward']:.4f} |"
-              f" r_STATE={self.info['angle_reward']:.4f} |"
-              f" r_ACTION={self.info['torque_reward'] :.4f} |"
-              f" r_TOTAL={self.info['total_reward']:.4f} |")
+              f" r_LIFT= {self.info['lift_reward']:.2f} ({lift_rel/tot:.2f}) |"
+              f" r_STATE={self.info['angle_reward']:.2f} ({phi_rel/tot:.2f}) |"
+              f" r_ACTION={self.info['torque_reward'] :.2f} ({torque_rel/tot:.2f}) |"
+              f" r_TOTAL={self.info['total_reward']:.2f} |")
 
     def render(self, mode="human"):
-        self.print_info()
+        self.pretty_print_info()
 
     def reset(self):
 
