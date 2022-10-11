@@ -29,7 +29,7 @@ def phi_dot_zero_crossing_event(t, y):
 
 
 class RobotSimulation:
-    def __init__(self, motor_torque=lambda x: 0, alpha=RADIAN45, phi0=0.0, phi_dot0=1e-4, start_t=0, end_t=0.05,
+    def __init__(self, motor_torque=lambda x: 0, alpha=RADIAN45, phi0=0.0, phi_dot0=1e-4, start_t=0, end_t=0.02,
                  delta_t=0.001) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
