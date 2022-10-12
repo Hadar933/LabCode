@@ -17,7 +17,6 @@ class TensorboardCallback(BaseCallback):
         self.env = environment
 
     def _on_step(self) -> bool:
-        # Log scalar value (here a random variable)
         phi = self.env.info['state']
         action = self.env.info['action']
         self.logger.record("phi", phi)

@@ -78,12 +78,12 @@ class WingEnv(Env):
 
         # punish w.r.t to large changes to the torque
         action_norm = np.abs(np_torque[:-1] - action)
-        surpass_torque_diff = np.where(action_norm > self.max_action_diff, action_norm, 0)
+        surpass_torque_diff = np.where(action_norm > self.max_action_diff, action, 0)
         torque_rel_size = len(surpass_torque_diff.nonzero()[0])
-        torque_reward = surpass_torque_diff.sum()
+        torque_reward = surpass_torque_diff.sum() * 500
 
-        reward = (lift_rel_size * lift_reward - phi_rel_size * phi_reward - torque_rel_size * torque_reward) / (
-                lift_rel_size + phi_rel_size + torque_rel_size)
+        reward = (lift_rel_size * lift_reward - phi_rel_size * phi_reward - torque_rel_size * torque_reward) / \
+                 (lift_rel_size + phi_rel_size + torque_rel_size)
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations

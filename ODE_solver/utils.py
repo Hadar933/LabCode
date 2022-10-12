@@ -64,7 +64,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
     start_t, end_t = 0, 10 * delta_t  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
-    sim = RobotSimulation(end_t=end_t, phi_dot0=10)
+    sim = RobotSimulation(end_t=end_t, phi_dot0=2e-4)
 
     phi0_name = sim.phi0
     phi_dot0_name = sim.phi_dot0
@@ -127,7 +127,8 @@ if __name__ == '__main__':
     n_steps = 500
     t = np.linspace(0, end_t, n_steps)
     for f in [5]:
-        tau = 0.02 * np.sin(2 * np.pi * f * t)
+        # tau = 0.02 * np.sin(2 * np.pi * f * t)
+        tau = ([0.02] * 10 + [-0.02] * 10) * 25
         tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
         _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
         print(f"{tau_name}, F = {np.mean(force_arr)}")
