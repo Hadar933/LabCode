@@ -2,8 +2,28 @@ from matplotlib import pyplot as plt
 import numpy as np
 from environment import WingEnv
 from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3 import PPO
 import os
+
+
+class TensorboardCallback(BaseCallback):
+    """
+    Custom callback for plotting additional values in tensorboard.
+    """
+
+    def __init__(self, environment: WingEnv, verbose=0):
+        super(TensorboardCallback, self).__init__(verbose)
+        self.env = environment
+
+    def _on_step(self) -> bool:
+        # Log scalar value (here a random variable)
+        phi = self.env.info['state']
+        action = self.env.info['action']
+        self.logger.record("phi", phi)
+        self.logger.record("action", action)
+
+        return True
 
 
 def automated_env_checker(env):
@@ -17,9 +37,10 @@ def train_model(env, timesteps, steps_str, use_tensorboarad_in_colab):
     env.reset()
     if use_tensorboarad_in_colab:
         model = PPO("MultiInputPolicy", env, device='cuda', tensorboard_log='/content/tensorboard')
+        model.learn(total_timesteps=timesteps, callback=TensorboardCallback(env))
     else:
         model = PPO("MultiInputPolicy", env)
-    model.learn(total_timesteps=timesteps)
+        model.learn(total_timesteps=timesteps)
     model.save(f"PPO_{steps_str}")
     del model
     print("Finished Training Model")
@@ -64,6 +85,7 @@ def plot_steps(R, S, A, time, steps_str, save):
 
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
+    print(f"Working in colab: {in_colab}")
     n_steps = 100_000
     steps_str = f"{str(n_steps)[:-3]}k_regularized_action"
     env = WingEnv()
