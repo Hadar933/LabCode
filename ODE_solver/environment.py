@@ -82,8 +82,7 @@ class WingEnv(Env):
         torque_rel_size = len(surpass_torque_diff.nonzero()[0])
         torque_reward = surpass_torque_diff.sum() * 500
 
-        reward = (lift_rel_size * lift_reward - phi_rel_size * phi_reward - torque_rel_size * torque_reward) / \
-                 (lift_rel_size + phi_rel_size + torque_rel_size)
+        reward = lift_rel_size * lift_reward - phi_rel_size * phi_reward - torque_rel_size * torque_reward
         self.collected_reward.append(reward)
 
         # update time window and init cond for next iterations
