@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 # TODO: whats up with the time values? inconsistent                                                (V)
 # TODO: check that the lift force makes sense                                                      (V)
 # TODO: check how to access the loss to add regularization - ask Aviv maybe                        (V) - avoid
+# TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (V) - freq does not affect
+
 
 # TODO: make sense of all the Tensorboard loss values                                              (X)
-# TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (X)
 # TODO: add minimal work to the reward - see image on iPhone                                       (X)
 # TODO: is it ok that the state is only the LAST phi?                                              (X)
 # TODO: make sure atol and rtol are calibrated in solve_ivp                                        (X)

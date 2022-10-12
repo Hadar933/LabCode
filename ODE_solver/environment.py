@@ -1,4 +1,5 @@
 from collections import deque
+from typing import List
 
 from gym import Env
 from gym.spaces import Box, Dict
@@ -8,7 +9,7 @@ import random
 
 
 class WingEnv(Env):
-    def __init__(self, min_torque=-1, max_torque=1, min_phi=0, max_phi=np.pi):
+    def __init__(self, min_torque: float = -1, max_torque: float = 1, min_phi: float = 0, max_phi: float = np.pi):
         """
         the action space is a continuous torque value
         the observation space is currently a continuous value for phi (later I will add psi, theta)
@@ -18,35 +19,31 @@ class WingEnv(Env):
         :param max_phi: the maximal rotation angle
         """
         # initialize history as deques (FILO) of fixed size
-        self.history_size = 10
-        self.phi_history = deque([0.0] * self.history_size, maxlen=self.history_size)
-        self.torque_history = deque([0.0] * self.history_size, maxlen=self.history_size)
+        self.history_size: int = 10
+        self.phi_history_deque: deque = deque([0.0] * self.history_size, maxlen=self.history_size)
+        self.torque_history_deque: deque = deque([0.0] * self.history_size, maxlen=self.history_size)
 
-        self.rounds = 20  # arbitrary number of rounds
-        self.iters = 0
-        self.time_window = 0.02
-        self.max_approx_torque = 0.02
-        self.max_action_diff = 0.05 * self.max_approx_torque
+        self.rounds: int = 20  # arbitrary number of rounds
+        self.iters: int = 0
+        self.time_window: float = 0.02
+        self.max_approx_torque: float = 0.02
+        self.max_action_diff: float = 0.05 * self.max_approx_torque
 
-        self.max_torque = max_torque
-        self.min_torque = min_torque
-        self.max_phi = max_phi
-        self.min_phi = min_phi
+        self.max_torque: float = max_torque
+        self.min_torque: float = min_torque
+        self.max_phi: float = max_phi
+        self.min_phi: float = min_phi
 
-        self.action_space = Box(np.array([min_torque], dtype=np.float32), np.array([max_torque], dtype=np.float32))
-        self.observation_space = Dict({
+        self.action_space: Box = Box(np.array([min_torque], dtype=np.float32), np.array([max_torque], dtype=np.float32))
+        self.observation_space: Dict = Dict({
             "phi": Box(low=np.array([-np.inf] * self.history_size, dtype=np.float32),
                        high=np.array([np.inf] * self.history_size), dtype=np.float32),
             'torque': Box(low=np.array([min_torque] * self.history_size, dtype=np.float32),
                           high=np.array([max_torque] * self.history_size, dtype=np.float32))
         })
-        self.collected_reward = []
-        self.simulation = RobotSimulation()
-        self.info = {}
-
-    def delete_history(self):
-        self.phi_history = np.array([])
-        self.torque_history = np.array([])
+        self.collected_reward: List[float] = []
+        self.simulation: RobotSimulation = RobotSimulation()
+        self.info: dict = {}
 
     def step(self, action: np.ndarray):
         action *= self.max_approx_torque
@@ -61,15 +58,15 @@ class WingEnv(Env):
         last_phi, last_phi_dot = phi[-1], phi_dot[-1]
 
         # updating history stacks:
-        for item in phi[-self.history_size:]: self.phi_history.append(item)  # appending (FILO) the last elements
-        self.torque_history.append(action.item())
+        for item in phi[-self.history_size:]: self.phi_history_deque.append(item)  # appending (FILO) the last elements TODO may not need deque as we always add history_size values, removing all deque elements
+        self.torque_history_deque.append(action.item())
 
         # working with stacks converted to np arrays
-        np_phi = np.array(self.phi_history).astype(np.float32)
-        np_torque = np.array(self.torque_history).astype(np.float32)
+        np_phi = np.array(self.phi_history_deque).astype(np.float32)
+        np_torque = np.array(self.torque_history_deque).astype(np.float32)
 
         # calculate the reward:
-        lift_reward = self.simulation.lift_force(phi_dot).mean()  # TODO: why does this gets negative values?
+        lift_reward = self.simulation.lift_force(phi_dot).mean()
         lift_rel_size = len(phi_dot)
 
         # punish w.r.t bad phi values
@@ -125,29 +122,27 @@ class WingEnv(Env):
         print(f"[{self.info['iter']}] |"
               f" s={state:.2f} ({state_in_range}) |"
               f" a={self.info['action']:.4f} |"
-              f" r_LIFT= {self.info['lift_reward']:.2f} ({lift_rel/tot:.2f}) |"
-              f" r_STATE={self.info['angle_reward']:.2f} ({phi_rel/tot:.2f}) |"
-              f" r_ACTION={self.info['torque_reward'] :.2f} ({torque_rel/tot:.2f}) |"
+              f" r_LIFT= {self.info['lift_reward']:.2f} ({lift_rel / tot:.2f}) |"
+              f" r_STATE={self.info['angle_reward']:.2f} ({phi_rel / tot:.2f}) |"
+              f" r_ACTION={self.info['torque_reward'] :.2f} ({torque_rel / tot:.2f}) |"
               f" r_TOTAL={self.info['total_reward']:.2f} |")
 
     def render(self, mode="human"):
         self.pretty_print_info()
 
     def reset(self):
-
-        self.phi_history = deque([0] * self.history_size, maxlen=self.history_size)
-        self.torque_history = deque([0] * self.history_size, maxlen=self.history_size)
-
         zero_history = [0.0] * (self.history_size - 1)
+        self.phi_history_deque = deque(zero_history, maxlen=self.history_size)
+        self.torque_history_deque = deque(zero_history, maxlen=self.history_size)
+
         random_phi = round(random.uniform(self.min_phi, self.max_phi), ndigits=2)
         random_torque = round(random.uniform(self.min_torque, self.max_torque), ndigits=2)
 
-        self.phi_history.append(random_phi)
-        self.torque_history.append(random_torque)
+        self.phi_history_deque.append(random_phi)
+        self.torque_history_deque.append(random_torque)
 
-        phi = np.array(zero_history + [random_phi], dtype=np.float32)
-        torque = np.array(zero_history + [random_torque], dtype=np.float32)
-        obs = {'phi': phi, 'torque': torque}
+        obs = {'phi': np.array(self.phi_history_deque, dtype=np.float32),
+               'torque': np.array(self.torque_history_deque, dtype=np.float32)}
 
         self.rounds = 20
         self.collected_reward = []

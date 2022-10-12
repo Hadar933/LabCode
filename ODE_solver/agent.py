@@ -3,6 +3,7 @@ import numpy as np
 from environment import WingEnv
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import PPO
+import os
 
 
 def automated_env_checker(env):
@@ -62,10 +63,11 @@ def plot_steps(R, S, A, time, steps_str, save):
 
 
 if __name__ == '__main__':
+    in_colab = 'COLAB_GPU' in os.environ
     n_steps = 100_000
     steps_str = f"{str(n_steps)[:-3]}k_regularized_action"
     env = WingEnv()
     automated_env_checker(env)
-    train_model(env, n_steps, steps_str, True)
+    train_model(env, n_steps, steps_str, in_colab)
     R, S, A, time = simulate_steps(env, steps_str, 1000)
-    plot_steps(R, S, A, time, steps_str, True)
+    plot_steps(R, S, A, time, steps_str, in_colab)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
-MASS = 2.6e-4 # from the hummingbird paper
+MASS = 2.6e-4  # from the hummingbird paper
 WING_LENGTH = 0.07  # meters
 AERODYNAMIC_CENTER = 0.7 * WING_LENGTH
 GYRATION_RADIUS = 0.6 * WING_LENGTH  # we use this for moment of inertia
@@ -108,7 +108,7 @@ class RobotSimulation:
     def lift_force(self, phi_dot):
         """
         calculated the drag force on the wing, which will be used as reward
-        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no?
+        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no? YES
         :param phi_dot:
         :return:
         """
@@ -154,13 +154,15 @@ class RobotSimulation:
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
         if args:
             # we assume phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr,force_arr = args
-            args[0].append(phi)
-            args[1].append(phi_dot)
-            args[2].append(phi_ddot)
-            args[3].append(ang)
-            args[4].append(time)
-            args[5].append(lift_force)
-            args[6].append(torque)
+            for i, arr in [phi, phi_dot, phi_ddot, ang, time, lift_force, torque]:
+                args[i].append(arr)
+            # args[0].append(phi)
+            # args[1].append(phi_dot)
+            # args[2].append(phi_ddot)
+            # args[3].append(ang)
+            # args[4].append(time)
+            # args[5].append(lift_force)
+            # args[6].append(torque)
 
 #
 # if __name__ == '__main__':
