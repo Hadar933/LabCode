@@ -86,7 +86,7 @@ class WingEnv(Env):
         torque_reward = surpass_torque_diff.sum()
 
         tot = lift_rel_size + phi_rel_size + torque_rel_size
-        reward = lift_rel_size * lift_reward - (phi_rel_size * phi_reward) - (torque_rel_size * torque_reward) / tot
+        reward = (lift_rel_size * lift_reward - (phi_rel_size * phi_reward) - (torque_rel_size * torque_reward)) / tot
 
         # UPDATING THE TIME WINDOW AND INITIAL CONDITION
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
