@@ -64,7 +64,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
     start_t, end_t = 0, 10 * delta_t  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
-    sim = RobotSimulation(end_t=end_t, phi_dot0=2e-4)
+    sim = RobotSimulation(0, 2e-4, start_t, end_t)
 
     phi0_name = sim.phi0
     phi_dot0_name = sim.phi_dot0

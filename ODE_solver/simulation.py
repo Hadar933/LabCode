@@ -1,3 +1,5 @@
+from typing import Callable
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
@@ -29,27 +31,30 @@ def phi_dot_zero_crossing_event(t, y):
 
 
 class RobotSimulation:
-    def __init__(self, motor_torque=lambda x: 0, alpha=RADIAN45, phi0=0.0, phi_dot0=1e-4, start_t=0, end_t=0.02,
-                 delta_t=0.001) -> None:
+    def __init__(self,
+                 phi0: float, phi_dot0: float,
+                 start_t: float, end_t: float,
+                 motor_torque: Callable = lambda x: 0,
+                 alpha: float = RADIAN45,
+                 solve_ivp_time_increments: float = 0.001) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
         :param phi0: initial phi position of the current time window
         :param phi_dot0: initial ang. velocity of the current time window
         :param start_t: start time of the current window
         :param end_t: end time of the current window
-        :param delta_t: the time increments
+        :param solve_ivp_time_increments: the time increments
         """
         self.solution = 0
         self.motor_torque = motor_torque
         self.alpha = alpha  # angle of attack
         self.phi0 = phi0
         self.phi_dot0 = phi_dot0
-        # when defining time values we try to avoid floating points start end, as this may interfere with solve_ivp:
         self.start_t = start_t
         self.end_t = end_t
-        self.delta_t = delta_t
+        self.solve_ivp_time_increments = solve_ivp_time_increments
 
-    def set_time(self, new_start, new_end) -> None:
+    def set_time(self, new_start: float, new_end: float) -> None:
         """
         we update the start time to be the end of the prev time and the end time
         as the last end time + the window size we wish
@@ -57,14 +62,14 @@ class RobotSimulation:
         self.start_t = new_start
         self.end_t = new_end
 
-    def set_init_cond(self, new_phi0, new_phi_dot0) -> None:
+    def set_init_cond(self, new_phi0: float, new_phi_dot0: float) -> None:
         """
         we update the initial conditions to be the last value of previous iterations
         """
         self.phi0 = new_phi0
         self.phi_dot0 = new_phi_dot0
 
-    def set_motor_torque(self, new_motor_torque) -> None:
+    def set_motor_torque(self, new_motor_torque: Callable) -> None:
         """
         sets the moment to new value, based on the action the learning algorithm provided
         """
@@ -89,7 +94,7 @@ class RobotSimulation:
         """
         return C_L_MAX * np.sin(2 * self.alpha)
 
-    def drag_torque(self, phi_dot):
+    def drag_torque(self, phi_dot: np.ndarray) -> np.ndarray:
         """
         the drag moment
         """
@@ -105,7 +110,7 @@ class RobotSimulation:
         dy_dt = [phi_dot, (self.motor_torque(t) - self.drag_torque(phi_dot)) / MoI]
         return dy_dt
 
-    def lift_force(self, phi_dot):
+    def lift_force(self, phi_dot: np.ndarray) -> np.ndarray:
         """
         calculated the drag force on the wing, which will be used as reward
         TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no? YES
@@ -122,7 +127,7 @@ class RobotSimulation:
         :return:
         """
         phi_0, phi_dot_0 = self.phi0, self.phi_dot0
-        start_t, end_t, delta_t = self.start_t, self.end_t, self.delta_t
+        start_t, end_t, delta_t = self.start_t, self.end_t, self.solve_ivp_time_increments
         phi_dot_zero_crossing_event.terminal = True
         phi_dot_zero_crossing_event.direction = -np.sign(phi_dot_0)
         ang = []

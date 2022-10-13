@@ -21,7 +21,6 @@ class TensorboardCallback(BaseCallback):
         action = self.env.info['action']
         self.logger.record("phi", phi)
         self.logger.record("action", action)
-
         return True
 
 
@@ -56,7 +55,7 @@ def simulate_steps(env, steps_str, n_steps):
         R.append(reward)
         S.append(obs['phi'][-1])
         A.append(action.item())
-        time.append((i + 1) * env.time_window)
+        time.append((i + 1) * env.step_time)
         if done:
             obs = env.reset()
     env.close()
