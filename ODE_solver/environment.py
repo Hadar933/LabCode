@@ -70,23 +70,28 @@ class WingEnv(Env):
 
         # CALCULATING THE REWARD:
         lift_reward = self.simulation.lift_force(phi_dot).mean()
-        lift_rel_size = len(phi_dot)
+        # w_lift = len(phi_dot)
 
         # punish w.r.t bad phi values
         surpass_max_phi = np.where(np_phi > self.max_phi, np.abs(np_phi - self.max_phi), 0)
         surpass_min_phi = np.where(np_phi < self.min_phi, np.abs(np_phi - self.min_phi), 0)
-        phi_rel_size = len(np.nonzero(surpass_min_phi)[0]) + len(
-            np.nonzero(surpass_max_phi)[0])  # TODO: this can be zero
+        # w_phi = len(np.nonzero(surpass_min_phi)[0]) + len(
+        #     np.nonzero(surpass_max_phi)[0])  # TODO: this can be zero
         phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
 
         # punish w.r.t to large changes to the torque
         action_norm = np.abs(np_torque[:-1] - action)
-        surpass_torque_diff = np.where(action_norm > self.max_action_diff, np.abs(action), 0)
-        torque_rel_size = len(surpass_torque_diff.nonzero()[0])
-        torque_reward = surpass_torque_diff.sum()
+        # TODO: do not use diff from action to all prev action, use a_i - a_{i+1} like a derivative
+        # surpass_torque_diff = np.where(action_norm > self.max_action_diff, np.abs(action), 0)
+        torque_reward = np.sum(np.diff(np_torque) ** 2)
+        # surpass_torque_diff = np.where(abs_deriv > self.max_action_diff, abs_deriv, 0)
+        # w_torque = len(surpass_torque_diff.nonzero()[0])
+        # torque_reward = surpass_torque_diff.sum()
+        w_lift = 1
+        w_phi = 1
+        w_torque = 10
 
-        tot = lift_rel_size + phi_rel_size + torque_rel_size
-        reward = (lift_rel_size * lift_reward - (phi_rel_size * phi_reward) - (torque_rel_size * torque_reward)) / tot
+        reward = w_lift * lift_reward - (w_phi * phi_reward) - (w_torque * torque_reward)
 
         # UPDATING THE TIME WINDOW AND INITIAL CONDITION
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
@@ -97,14 +102,15 @@ class WingEnv(Env):
             'state': np_phi[-1],
             'action': np_torque[-1],
             'lift_reward': lift_reward,
-            'lift_rel_size': lift_rel_size,
+            'lift_rel_size': w_lift,
             'angle_reward': phi_reward,
-            'phi_rel_size': phi_rel_size,
+            'phi_rel_size': w_phi,
             'torque_reward': torque_reward,
-            'torque_rel_size': torque_rel_size,
+            'torque_rel_size': w_torque,
             'total_reward': reward.item()
         }
         if self.iters % 100 == 0:
+            # print(f"Lift rel: {lift_rel_size} | Phi rel: {phi_rel_size} | Torque rel: {torque_rel_size}")
             self.pretty_print_info()
 
         obs = {'phi': np_phi, 'torque': np_torque}
