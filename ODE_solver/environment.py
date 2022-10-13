@@ -61,8 +61,7 @@ class WingEnv(Env):
         last_phi, last_phi_dot = phi[-1], phi_dot[-1]
 
         # UPDATE STATE & ACTION HISTORY:
-        for item in phi[-self.history_size:]: self.phi_history_deque.append(
-            item)  # appending (FILO) the last elements TODO may not need deque as we always add history_size values, removing all deque elements
+        for item in phi[-self.history_size:]: self.phi_history_deque.append(item)  # appending (FILO) the last elements
         self.torque_history_deque.append(action.item())
 
         # working with stacks converted to np arrays

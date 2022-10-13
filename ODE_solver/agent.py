@@ -87,7 +87,7 @@ if __name__ == '__main__':
     n_steps = 100_000
     steps_str = f"{str(n_steps)[:-3]}k_regularized_action"
     env = WingEnv()
-    # automated_env_checker(env)
-    # train_model(env, n_steps, steps_str, in_colab)
+    automated_env_checker(env)
+    train_model(env, n_steps, steps_str, in_colab)
     R, S, A, time = simulate_steps(env, steps_str, 1000)
     plot_steps(R, S, A, time, steps_str, in_colab)
