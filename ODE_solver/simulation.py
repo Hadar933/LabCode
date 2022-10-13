@@ -113,11 +113,12 @@ class RobotSimulation:
     def lift_force(self, phi_dot: np.ndarray, angle: np.ndarray) -> np.ndarray:
         """
         calculated the drag force on the wing, which will be used as reward
-        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no? YES
+        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no?
         :param angle:
         :param phi_dot:
         :return:
         """
+        angle = np.where(phi_dot > 0, RADIAN45, RADIAN135)
         c_lift = self.c_lift(angle)
         f_lift = 0.5 * AIR_DENSITY * WING_AREA * c_lift * phi_dot * np.abs(phi_dot)
         return f_lift
