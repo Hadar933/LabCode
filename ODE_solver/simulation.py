@@ -139,9 +139,9 @@ class RobotSimulation:
         while start_t < end_t:
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
                             events=phi_dot_zero_crossing_event)
-            if sol.status == ZERO_CROSSING:
-                sol.y[1][-1] = 0  # avoid small floating points values with arbitrary sign by setting phi dot to 0
-            # self.solution = sol.y  # TODO: this must be removed as it overrides the values, unlike sol_between_zero_crossing
+            if np.abs(sol.y[1][0]) < 1e-10: sol.y[1][0] = 0
+            if np.abs(sol.y[1][-1]) < 1e-10: sol.y[1][-1] = 0
+
             ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
