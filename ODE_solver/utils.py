@@ -63,7 +63,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
     :return: arrays that represents phi,phi_dot,phi_ddot,time,alpha,lift force
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
-    start_t, end_t = 0, 10 * delta_t  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
+    start_t, end_t = 0, 0.2  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
     sim = RobotSimulation(0, 2e-4, start_t, end_t)
 
     phi0_name = sim.phi0
@@ -75,7 +75,7 @@ def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str,
         phi, phi_dot = sim.solution
         phi0, phidot0 = phi[-1], phi_dot[-1]
         start_t = end_t
-        end_t += 10 * delta_t  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
+        end_t += 0.2  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
         sim.set_init_cond(phi0, phidot0)
         sim.set_time(start_t, end_t)
 
@@ -124,11 +124,11 @@ def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
 
 if __name__ == '__main__':
     end_t = 1
-    n_steps = 500
+    n_steps = 100
     t = np.linspace(0, end_t, n_steps)
     for f in [5]:
         # tau = 0.02 * np.sin(2 * np.pi * f * t)
-        tau = ([0.02] * 10 + [-0.02] * 10) * 25
+        tau = ([0.02] * 10 + [-0.02]*10) * 5
         tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
         _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
         print(f"{tau_name}, F = {np.mean(force_arr)}")

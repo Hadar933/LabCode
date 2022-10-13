@@ -78,7 +78,7 @@ class WingEnv(Env):
         surpass_min_phi = np.where(np_phi < self.min_phi, np.abs(np_phi - self.min_phi), 0)
         phi_rel_size = len(np.nonzero(surpass_min_phi)[0]) + len(
             np.nonzero(surpass_max_phi)[0])  # TODO: this can be zero
-        phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
+        phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum() * 100
 
         # punish w.r.t to large changes to the torque
         action_norm = np.abs(np_torque[:-1] - action)
