@@ -12,7 +12,7 @@ class WingEnv(Env):
     def __init__(self, min_torque: float = -1, max_torque: float = 1,
                  min_phi: float = 0, max_phi: float = np.pi,
                  history_size: int = 10,
-                 step_time: int = 0.2,
+                 step_time: int = 0.02,
                  steps_per_episode: int = 20):
         """
         the action space is a continuous torque value
@@ -86,7 +86,8 @@ class WingEnv(Env):
         torque_rel_size = len(surpass_torque_diff.nonzero()[0])
         torque_reward = surpass_torque_diff.sum()
 
-        reward = lift_rel_size * lift_reward - (phi_rel_size * phi_reward) - (torque_rel_size * torque_reward)
+        tot = lift_rel_size + phi_rel_size + torque_rel_size
+        reward = lift_rel_size * lift_reward - (phi_rel_size * phi_reward) - (torque_rel_size * torque_reward) / tot
 
         # UPDATING THE TIME WINDOW AND INITIAL CONDITION
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
