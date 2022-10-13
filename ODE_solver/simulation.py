@@ -88,11 +88,11 @@ class RobotSimulation:
         """
         return (C_D_MAX + C_D_0) / 2 - (C_D_MAX - C_D_0) / 2 * np.cos(2 * self.alpha)
 
-    def c_lift(self) -> float:
+    def c_lift(self, angle) -> float:
         """
         calculates the lift coefficient based on the angle of attack
         """
-        return C_L_MAX * np.sin(2 * self.alpha)
+        return C_L_MAX * np.sin(2 * angle)
 
     def drag_torque(self, phi_dot: np.ndarray) -> np.ndarray:
         """
@@ -110,14 +110,16 @@ class RobotSimulation:
         dy_dt = [phi_dot, (self.motor_torque(t) - self.drag_torque(phi_dot)) / MoI]
         return dy_dt
 
-    def lift_force(self, phi_dot: np.ndarray) -> np.ndarray:
+    def lift_force(self, phi_dot: np.ndarray, angle: np.ndarray) -> np.ndarray:
         """
         calculated the drag force on the wing, which will be used as reward
         TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no? YES
+        :param angle:
         :param phi_dot:
         :return:
         """
-        f_lift = 0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * phi_dot * np.abs(phi_dot)
+        c_lift = self.c_lift(angle)
+        f_lift = 0.5 * AIR_DENSITY * WING_AREA * c_lift * phi_dot * np.abs(phi_dot)
         return f_lift
 
     def solve_dynamics(self, *args):
@@ -134,18 +136,13 @@ class RobotSimulation:
         ang = []
         times_between_zero_cross = []
         sol_between_zero_cross = []
-        lift_force = []
         torque = []
         while start_t < end_t:
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
                             events=phi_dot_zero_crossing_event)
-            if np.abs(sol.y[1][0]) < 1e-10: sol.y[1][0] = 0
-            if np.abs(sol.y[1][-1]) < 1e-10: sol.y[1][-1] = 0
-
             ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
-            lift_force.append(self.lift_force(sol.y[1]))
             torque.append(self.motor_torque(0) * np.ones(len(sol.t)))
             if sol.status == ZERO_CROSSING:
                 # TODO: make sure we set the sign of flip alpha not w.r.t after the zero crossing, set alpha according to what phi was as that time
@@ -155,10 +152,11 @@ class RobotSimulation:
                 self.flip_alpha()
             else:  # no zero crossing = the solution is for [start_t,end_t] and we are essentially done
                 break
+
         time = np.concatenate(times_between_zero_cross)
         phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
         ang = np.concatenate(ang)
-        lift_force = np.concatenate(lift_force)
+        lift_force = self.lift_force(phi_dot, ang)
         torque = np.concatenate(torque)
         _, phi_ddot = self.phi_derivatives(time, [phi, phi_dot])
         if args:
