@@ -120,19 +120,19 @@ class WingEnv(Env):
         """
         a friendly function that prints the information of the environment
         """
-        lift_rel = self.info['lift_rel_size']
-        phi_rel = self.info['phi_rel_size']
-        torque_rel = self.info['torque_rel_size']
-        tot = lift_rel + phi_rel + torque_rel
+        # lift_rel = self.info['lift_rel_size']
+        # phi_rel = self.info['phi_rel_size']
+        # torque_rel = self.info['torque_rel_size']
+        # tot = lift_rel + phi_rel + torque_rel
 
         state = self.info['state']
         state_in_range = "OK" if self.min_phi <= state <= self.max_phi else "BAD"
         print(f"[{self.info['iter']}] |"
               f" s={state:.2f} ({state_in_range}) |"
               f" a={self.info['action']:.4f} |"
-              f" r_LIFT= {self.info['lift_reward']:.2f} ({lift_rel / tot:.2f}) |"
-              f" r_STATE={self.info['angle_reward']:.2f} ({phi_rel / tot:.2f}) |"
-              f" r_ACTION={self.info['torque_reward'] :.2f} ({torque_rel / tot:.2f}) |"
+              f" r_LIFT= {self.info['lift_reward']:.2f} |"
+              f" r_STATE={self.info['angle_reward']:.2f} |"
+              f" r_ACTION={self.info['torque_reward'] :.2f} |"
               f" r_TOTAL={self.info['total_reward']:.2f} |")
 
     def render(self, mode="human"):
