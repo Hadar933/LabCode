@@ -53,7 +53,7 @@ def plot_all(time, torque, phi, phi_dot, phi_ddot, alpha, force, torque_name, ph
     plt.show()
 
 
-def check_simulation_given_torque(delta_t, torque: np.ndarray, torque_name: str, do_plot: bool):
+def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot: bool):
     """
     solves the ODE in sequential order given the torque values and plots all relevant
     angles / forces / etc..
@@ -128,9 +128,9 @@ if __name__ == '__main__':
     t = np.linspace(0, end_t, n_steps)
     for f in [5]:
         # tau = 0.02 * np.sin(2 * np.pi * f * t)
-        tau = ([0.02] * 10 + [-0.02]*10) * 5
+        tau = ([0.02] * 10 + [-0.02] * 10) * 5
         tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
-        _, _, _, _, _, force_arr = check_simulation_given_torque(end_t / n_steps, tau, tau_name, True)
+        _, _, _, _, _, force_arr = check_simulation_given_torque(tau, tau_name, True)
         print(f"{tau_name}, F = {np.mean(force_arr)}")
 
     # energy_landscape(n_steps, end_t, 0.025, 32, 10)
