@@ -56,8 +56,8 @@ class WingEnv(Env):
 
         # INVOKE SIMULATION:
         self.simulation.set_motor_torque(lambda x: action)
-        self.simulation.solve_dynamics()
-        phi, phi_dot = self.simulation.solution
+        phi, phi_dot, phi_ddot, ang, time, lift_force, torque = self.simulation.solve_dynamics()
+        # phi, phi_dot = self.simulation.solution
         last_phi, last_phi_dot = phi[-1], phi_dot[-1]
 
         # UPDATE STATE & ACTION HISTORY:
@@ -69,7 +69,8 @@ class WingEnv(Env):
         np_torque = np.array(self.torque_history_deque).astype(np.float32)
 
         # CALCULATING THE REWARD:
-        lift_reward = self.simulation.lift_force(phi_dot).mean()
+        lift_reward = lift_force.mean()
+        # lift_reward = self.simulation.lift_force(phi_dot).mean() # TODO: should be deleted
         # w_lift = len(phi_dot)
 
         # punish w.r.t bad phi values
@@ -80,7 +81,7 @@ class WingEnv(Env):
         phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
 
         # punish w.r.t to large changes to the torque
-        action_norm = np.abs(np_torque[:-1] - action)
+        # action_norm = np.abs(np_torque[:-1] - action)
         # TODO: do not use diff from action to all prev action, use a_i - a_{i+1} like a derivative
         # surpass_torque_diff = np.where(action_norm > self.max_action_diff, np.abs(action), 0)
         torque_reward = np.sum(np.diff(np_torque) ** 2)
@@ -110,7 +111,6 @@ class WingEnv(Env):
             'total_reward': reward.item()
         }
         if self.iters % 100 == 0:
-            # print(f"Lift rel: {lift_rel_size} | Phi rel: {phi_rel_size} | Torque rel: {torque_rel_size}")
             self.pretty_print_info()
 
         obs = {'phi': np_phi, 'torque': np_torque}

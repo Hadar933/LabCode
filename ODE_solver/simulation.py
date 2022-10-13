@@ -117,7 +117,8 @@ class RobotSimulation:
         :param phi_dot:
         :return:
         """
-        return 0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * (phi_dot ** 2)
+        f_lift = 0.5 * AIR_DENSITY * WING_AREA * self.c_lift() * phi_dot * np.abs(phi_dot)
+        return f_lift
 
     def solve_dynamics(self, *args):
         """
@@ -138,13 +139,16 @@ class RobotSimulation:
         while start_t < end_t:
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
                             events=phi_dot_zero_crossing_event)
-            self.solution = sol.y
+            if sol.status == ZERO_CROSSING:
+                sol.y[1][-1] = 0  # avoid small floating points values with arbitrary sign by setting phi dot to 0
+            # self.solution = sol.y  # TODO: this must be removed as it overrides the values, unlike sol_between_zero_crossing
             ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
             lift_force.append(self.lift_force(sol.y[1]))
             torque.append(self.motor_torque(0) * np.ones(len(sol.t)))
             if sol.status == ZERO_CROSSING:
+                # TODO: make sure we set the sign of flip alpha not w.r.t after the zero crossing, set alpha according to what phi was as that time
                 start_t = sol.t[-1] + delta_t
                 phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
                 phi_dot_zero_crossing_event.direction *= -1
@@ -160,3 +164,4 @@ class RobotSimulation:
         if args:
             for i, arr in enumerate([phi, phi_dot, phi_ddot, ang, time, lift_force, torque]):
                 args[i].append(arr)
+        return phi, phi_dot, phi_ddot, ang, time, lift_force, torque
