@@ -81,16 +81,16 @@ class WingEnv(Env):
         phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
 
         # punish w.r.t to large changes to the torque
-        # action_norm = np.abs(np_torque[:-1] - action)
+        action_norm = np.abs(np_torque[:-1] - action)
         # TODO: do not use diff from action to all prev action, use a_i - a_{i+1} like a derivative
-        # surpass_torque_diff = np.where(action_norm > self.max_action_diff, np.abs(action), 0)
-        torque_reward = np.sum(np.diff(np_torque) ** 2)
+        surpass_torque_diff = np.where(action_norm > self.max_action_diff, np.abs(action), 0)
+        # torque_reward = np.sum(np.diff(np_torque) ** 2)
         # surpass_torque_diff = np.where(abs_deriv > self.max_action_diff, abs_deriv, 0)
         # w_torque = len(surpass_torque_diff.nonzero()[0])
-        # torque_reward = surpass_torque_diff.sum()
+        torque_reward = surpass_torque_diff.sum()
         w_lift = 1
         w_phi = 1
-        w_torque = 1
+        w_torque = 10
 
         reward = w_lift * lift_reward - (w_phi * phi_reward) - (w_torque * torque_reward)
 
