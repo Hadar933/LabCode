@@ -41,6 +41,7 @@ def load_model_and_invoke(env: WingEnv, name: str, n_steps: int):
     obs = env.reset()
     model = PPO.load(f"{name}.zip")
     rewards, states, actions, time = [0.0], [0.0], [0.0], [0.0]
+
     for i in range(n_steps - 1):
         action, _states = model.predict(obs)
         obs, reward, done, info = env.step(action)
@@ -79,16 +80,19 @@ def plot_steps(rewards, states, actions, time, name, save):
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
     print(f"Working in colab: {in_colab}")
-    n_train_steps = 1_000
+    n_train_steps = 180_000
     invoke_for = 1000
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True
 
     wing_env = WingEnv()
+    print("Checking environment")
     check_env(wing_env)
 
     if f"{model_name}.zip" not in os.listdir():  # need to train
+        print("Training model...")
         train_model_and_save(wing_env, n_train_steps, model_name, in_colab)
 
+    print("Invoking model")
     R, S, A, T = load_model_and_invoke(wing_env, model_name, invoke_for)
     if plot_after_invocation: plot_steps(R, S, A, T, model_name, in_colab)
