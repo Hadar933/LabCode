@@ -83,7 +83,7 @@ class WingEnv(Env):
         # punish w.r.t to large changes to the torque
         action_norm = np.abs(np_torque[:-1] - action)
         # TODO: do not use diff from action to all prev action, use a_i - a_{i+1} like a derivative
-        surpass_torque_diff = np.where(action_norm > self.max_action_diff, np.abs(action), 0)
+        surpass_torque_diff = np.where(action_norm > self.max_action_diff, action_norm.sum(), 0)
         # torque_reward = np.sum(np.diff(np_torque) ** 2)
         # surpass_torque_diff = np.where(abs_deriv > self.max_action_diff, abs_deriv, 0)
         # w_torque = len(surpass_torque_diff.nonzero()[0])
