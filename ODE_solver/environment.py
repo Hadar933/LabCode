@@ -27,8 +27,8 @@ class WingEnv(Env):
         self.phi_history_deque: deque = deque([0.0] * self.history_size, maxlen=self.history_size)
         self.torque_history_deque: deque = deque([0.0] * self.history_size, maxlen=self.history_size)
 
-        self.rounds: int = steps_per_episode  # time of each episode is rounds * step_time
-        self.iters: int = 0
+        self.steps_per_episode: int = steps_per_episode  # time of each episode is rounds * step_time
+        self.n_steps: int = 0
         self.step_time: float = step_time  # seconds
         self.max_approx_torque: float = 0.02
         self.max_action_diff: float = 0.05 * self.max_approx_torque
@@ -50,80 +50,50 @@ class WingEnv(Env):
 
     def step(self, action: np.ndarray):
         action *= self.max_approx_torque
-        self.iters += 1
-        done = False if self.rounds > 0 else True
-        self.rounds -= 1
+        self.n_steps += 1
+        done = False if self.steps_per_episode > 0 else True
+        self.steps_per_episode -= 1
 
-        # INVOKE SIMULATION:
+        # (1) INVOKE SIMULATION:
         self.simulation.set_motor_torque(lambda x: action)
-        phi, phi_dot, phi_ddot, ang, time, lift_force, torque = self.simulation.solve_dynamics()
-        # phi, phi_dot = self.simulation.solution
-        last_phi, last_phi_dot = phi[-1], phi_dot[-1]
+        phi, phi_dot, _, _, _, lift_force, _ = self.simulation.solve_dynamics()
 
-        # UPDATE STATE & ACTION HISTORY:
+        # (2) UPDATE STATE & ACTION HISTORY:
         for item in phi[-self.history_size:]: self.phi_history_deque.append(item)  # appending (FILO) the last elements
         self.torque_history_deque.append(action.item())
-
-        # working with stacks converted to np arrays
+        # (2.1) working with stacks converted to np arrays
         np_phi = np.array(self.phi_history_deque).astype(np.float32)
         np_torque = np.array(self.torque_history_deque).astype(np.float32)
 
-        # CALCULATING THE REWARD:
+        # (3) CALCULATING THE REWARD:
         lift_reward = lift_force.mean()
-        # lift_reward = self.simulation.lift_force(phi_dot).mean() # TODO: should be deleted
-        # w_lift = len(phi_dot)
-
-        # punish w.r.t bad phi values
+        # (3.1) punish w.r.t bad phi values:
         surpass_max_phi = np.where(np_phi > self.max_phi, np.abs(np_phi - self.max_phi), 0)
         surpass_min_phi = np.where(np_phi < self.min_phi, np.abs(np_phi - self.min_phi), 0)
-        # w_phi = len(np.nonzero(surpass_min_phi)[0]) + len(
-        #     np.nonzero(surpass_max_phi)[0])  # TODO: this can be zero
         phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
-
-        # punish w.r.t to large changes to the torque
-        action_norm = np.abs(np_torque[:-1] - action)
-        # TODO: do not use diff from action to all prev action, use a_i - a_{i+1} like a derivative
-        surpass_torque_diff = np.where(action_norm > self.max_action_diff, action_norm.sum(), 0)
-        # torque_reward = np.sum(np.diff(np_torque) ** 2)
-        # surpass_torque_diff = np.where(abs_deriv > self.max_action_diff, abs_deriv, 0)
-        # w_torque = len(surpass_torque_diff.nonzero()[0])
-        torque_reward = surpass_torque_diff.sum()
-        w_lift = 1
-        w_phi = 1
-        w_torque = 100
-
+        # (3.2) punish w.r.t to large changes to the torque:
+        torque_reward = np.sum(np.diff(np_torque) ** 2)
+        # (3.3) weighted sum
+        w_lift, w_phi, w_torque = 1, 1, 1
         reward = w_lift * lift_reward - (w_phi * phi_reward) - (w_torque * torque_reward)
 
-        # UPDATING THE TIME WINDOW AND INITIAL CONDITION
+        # (4) UPDATING THE TIME WINDOW AND INITIAL CONDITION
+        self.simulation.set_init_cond(phi[-1], phi_dot[-1])
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
-        self.simulation.set_init_cond(last_phi, last_phi_dot)
 
-        self.info = {
-            'iter': self.iters,
-            'state': np_phi[-1],
-            'action': np_torque[-1],
-            'lift_reward': lift_reward,
-            'lift_rel_size': w_lift,
-            'angle_reward': phi_reward,
-            'phi_rel_size': w_phi,
-            'torque_reward': torque_reward,
-            'torque_rel_size': w_torque,
-            'total_reward': reward.item()
-        }
-        if self.iters % 100 == 0:
-            self.pretty_print_info()
+        self.info = {'iter': self.n_steps, 'state': np_phi[-1], 'action': np_torque[-1],
+                     'lift_reward': w_lift * lift_reward, 'angle_reward': w_phi * phi_reward,
+                     'torque_reward': w_torque * torque_reward, 'total_reward': reward.item()}
+
+        if self.n_steps % 100 == 0: self._pretty_print_info()
 
         obs = {'phi': np_phi, 'torque': np_torque}
         return obs, reward.item(), done, self.info
 
-    def pretty_print_info(self) -> None:
+    def _pretty_print_info(self) -> None:
         """
         a friendly function that prints the information of the environment
         """
-        # lift_rel = self.info['lift_rel_size']
-        # phi_rel = self.info['phi_rel_size']
-        # torque_rel = self.info['torque_rel_size']
-        # tot = lift_rel + phi_rel + torque_rel
 
         state = self.info['state']
         state_in_range = "OK" if self.min_phi <= state <= self.max_phi else "BAD"
@@ -136,7 +106,7 @@ class WingEnv(Env):
               f" r_TOTAL={self.info['total_reward']:.2f} |")
 
     def render(self, mode="human"):
-        self.pretty_print_info()
+        self._pretty_print_info()
 
     def reset(self):
         """
@@ -156,6 +126,6 @@ class WingEnv(Env):
         obs = {'phi': np.array(self.phi_history_deque, dtype=np.float32),
                'torque': np.array(self.torque_history_deque, dtype=np.float32)}
 
-        self.rounds = 20
+        self.steps_per_episode = 20
 
         return obs
