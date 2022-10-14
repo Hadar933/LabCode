@@ -90,7 +90,7 @@ class WingEnv(Env):
         torque_reward = surpass_torque_diff.sum()
         w_lift = 1
         w_phi = 1
-        w_torque = 10
+        w_torque = 100
 
         reward = w_lift * lift_reward - (w_phi * phi_reward) - (w_torque * torque_reward)
 
