@@ -80,7 +80,7 @@ def plot_steps(rewards, states, actions, time, name, save):
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
     print(f"Working in colab: {in_colab}")
-    n_train_steps = 180_000
+    n_train_steps = 1_000_000
     invoke_for = 1000
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True
