@@ -118,7 +118,7 @@ class RobotSimulation:
         :param phi_dot:
         :return:
         """
-        angle = np.where(phi_dot > 0, RADIAN45, RADIAN135)
+        # angle = np.where(phi_dot > 0, RADIAN45, RADIAN135)
         c_lift = self.c_lift(angle)
         f_lift = 0.5 * AIR_DENSITY * WING_AREA * c_lift * phi_dot * np.abs(phi_dot)
         return f_lift
@@ -141,7 +141,8 @@ class RobotSimulation:
         while start_t < end_t:
             sol = solve_ivp(self.phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
                             events=phi_dot_zero_crossing_event)
-            ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
+            ang.append(np.where(np.sign(sol.y[1]) > 0, RADIAN45, RADIAN135))
+            # ang.append(self.alpha * np.ones(len(sol.t)))  # set alpha for every t based on solution's size
             times_between_zero_cross.append(sol.t)
             sol_between_zero_cross.append(sol.y)
             torque.append(self.motor_torque(0) * np.ones(len(sol.t)))
