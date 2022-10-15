@@ -1,19 +1,34 @@
 from collections import deque
-from typing import List
-
 from gym import Env
 from gym.spaces import Box, Dict
 import numpy as np
 from simulation import RobotSimulation
 import random
 
+MIN_TORQUE = -1
+MAX_TORQUE = -1
+MIN_PHI = 0
+MAX_PHI = np.pi
+HISTORY_SIZE = 10
+STEP_TIME = 0.01
+STEPS_PER_EPISODE = 20
+MAX_APPROX_TORQUE = 0.02
+ACTION_ERROR_PERCENTAGE = 0.05
+INITIAL_PHI0 = 0
+INITIAL_PHI_DOT0 = 2e-4
+LIFT_WEIGHT = 1
+PHI_WEIGHT = 1
+TORQUE_WEIGHT = 1
+
 
 class WingEnv(Env):
-    def __init__(self, min_torque: float = -1, max_torque: float = 1,
-                 min_phi: float = 0, max_phi: float = np.pi,
-                 history_size: int = 10,
-                 step_time: int = 0.02,
-                 steps_per_episode: int = 20):
+    def __init__(self,
+                 min_torque: float = MIN_TORQUE, max_torque: float = MAX_TORQUE,
+                 min_phi: float = MIN_PHI, max_phi: float = MAX_PHI,
+                 history_size: int = HISTORY_SIZE,
+                 step_time: int = STEP_TIME,
+                 steps_per_episode: int = STEPS_PER_EPISODE,
+                 max_approx_torque: int = MAX_APPROX_TORQUE):
         """
         the action space is a continuous torque value
         the observation space is currently a continuous value for phi (later I will add psi, theta)
@@ -22,7 +37,7 @@ class WingEnv(Env):
         :param min_phi: the minimal rotation angle
         :param max_phi: the maximal rotation angle
         """
-        # initialize history as deques (FILO) of fixed size
+        # initialize history as deque (FILO) of fixed size
         self.history_size: int = history_size
         self.phi_history_deque: deque = deque([0.0] * self.history_size, maxlen=self.history_size)
         self.torque_history_deque: deque = deque([0.0] * self.history_size, maxlen=self.history_size)
@@ -30,8 +45,8 @@ class WingEnv(Env):
         self.steps_per_episode: int = steps_per_episode  # time of each episode is rounds * step_time
         self.n_steps: int = 0
         self.step_time: float = step_time  # seconds
-        self.max_approx_torque: float = 0.02
-        self.max_action_diff: float = 0.05 * self.max_approx_torque
+        self.max_approx_torque: float = max_approx_torque
+        self.max_action_diff: float = ACTION_ERROR_PERCENTAGE * self.max_approx_torque
 
         self.max_torque: float = max_torque
         self.min_torque: float = min_torque
@@ -45,7 +60,8 @@ class WingEnv(Env):
             'torque': Box(low=np.array([min_torque] * self.history_size, dtype=np.float32),
                           high=np.array([max_torque] * self.history_size, dtype=np.float32))
         })
-        self.simulation: RobotSimulation = RobotSimulation(phi0=0, phi_dot0=2e-4, start_t=0, end_t=self.step_time)
+        self.simulation: RobotSimulation = RobotSimulation(phi0=INITIAL_PHI0, phi_dot0=INITIAL_PHI_DOT0, start_t=0,
+                                                           end_t=self.step_time)
         self.info: dict = {}
 
     def step(self, action: np.ndarray):
@@ -74,16 +90,15 @@ class WingEnv(Env):
         # (3.2) punish w.r.t to large changes to the torque:
         torque_reward = np.sum(np.diff(np_torque) ** 2)
         # (3.3) weighted sum
-        w_lift, w_phi, w_torque = 1, 1, 1
-        reward = w_lift * lift_reward - (w_phi * phi_reward) - (w_torque * torque_reward)
+        reward = LIFT_WEIGHT * lift_reward - (PHI_WEIGHT * phi_reward) - (TORQUE_WEIGHT * torque_reward)
 
         # (4) UPDATING THE TIME WINDOW AND INITIAL CONDITION
         self.simulation.set_init_cond(phi[-1], phi_dot[-1])
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
 
         self.info = {'iter': self.n_steps, 'state': np_phi[-1], 'action': np_torque[-1],
-                     'lift_reward': w_lift * lift_reward, 'angle_reward': w_phi * phi_reward,
-                     'torque_reward': w_torque * torque_reward, 'total_reward': reward.item()}
+                     'lift_reward': LIFT_WEIGHT * lift_reward, 'angle_reward': PHI_WEIGHT * phi_reward,
+                     'torque_reward': TORQUE_WEIGHT * torque_reward, 'total_reward': reward.item()}
 
         if self.n_steps % 100 == 0: self._pretty_print_info()
 
@@ -94,7 +109,6 @@ class WingEnv(Env):
         """
         a friendly function that prints the information of the environment
         """
-
         state = self.info['state']
         state_in_range = "OK" if self.min_phi <= state <= self.max_phi else "BAD"
         print(f"[{self.info['iter']}] |"
@@ -126,6 +140,6 @@ class WingEnv(Env):
         obs = {'phi': np.array(self.phi_history_deque, dtype=np.float32),
                'torque': np.array(self.torque_history_deque, dtype=np.float32)}
 
-        self.steps_per_episode = 20
+        self.steps_per_episode = STEPS_PER_EPISODE
 
         return obs

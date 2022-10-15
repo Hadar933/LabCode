@@ -3,16 +3,15 @@ from simulation import RobotSimulation
 import matplotlib.pyplot as plt
 
 
-# TODO: whats up with the time values? inconsistent                                                (V)
-# TODO: check that the lift force makes sense                                                      (V)
-# TODO: check how to access the loss to add regularization - ask Aviv maybe                        (V) - avoid
-# TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape"  (V) - freq does not affect
+# TODO: whats up with the time values? inconsistent                                               (V)
+# TODO: check that the lift force makes sense                                                     (V)
+# TODO: check how to access the loss to add regularization - ask Aviv maybe                       (V) - avoid
+# TODO: add grid plot of sum of rewards to evaluate the model w.r.t Acos(wt) - "Energy landscape" (V) - f doesnt affect
+# TODO: is it ok that the state is only the LAST phi?                                             (V) - added history
 
-
-# TODO: make sense of all the Tensorboard loss values                                              (X)
-# TODO: add minimal work to the reward - see image on iPhone                                       (X)
-# TODO: is it ok that the state is only the LAST phi?                                              (X)
-# TODO: make sure atol and rtol are calibrated in solve_ivp                                        (X)
+# TODO: make sense of all the Tensorboard loss values                                             (X)
+# TODO: add minimal work to the reward - see image on iPhone                                      (X)
+# TODO: make sure atol and rtol are calibrated in solve_ivp                                       (X)
 
 
 def plot_all(time, torque, phi, phi_dot, phi_ddot, alpha, force, torque_name, phi0, phidot0):
@@ -63,7 +62,7 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
     :return: arrays that represents phi,phi_dot,phi_ddot,time,alpha,lift force
     """
     phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr = [], [], [], [], [], [], []
-    start_t, end_t = 0, 0.2  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
+    start_t, end_t = 0, 0.2
     sim = RobotSimulation(0, 0, start_t, end_t)
 
     phi0_name = sim.phi0
@@ -74,7 +73,7 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
         phi, phi_dot, phi_ddot, ang, time, lift_force, torque = sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr)
         phi0, phidot0 = phi[-1], phi_dot[-1]
         start_t = end_t
-        end_t += 0.2  # TODO: playing with the timing here - I think that setting += delta_t causes bugs. we dont need to sync the action timing with the cosine timing
+        end_t += 0.2
         sim.set_init_cond(phi0, phidot0)
         sim.set_time(start_t, end_t)
 
@@ -95,10 +94,9 @@ def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
     scans a range of amplitudes A={a_1,a_2,...,a_N} and frequencies F={f_1,f_2,...,f_N} and calculates the
     accumulated lift force that was generated using torque = a*cos(2*pi*f*t) for end_time seconds
     """
-    delta_t = end_time / n_timesteps
-    t = np.linspace(0, end_time, n_timesteps)
+    time = np.linspace(0, end_time, n_timesteps)
     amplitude_arr = np.linspace(0.005, max_amplitude, n_samples)  # (N,1)
-    freq_array = np.linspace(1, max_freq, n_samples)  # (N,1)
+    freq_array = np.linspace(0.1, max_freq, n_samples)  # (N,1)
     all_rewards = []
     for i, a in enumerate(amplitude_arr):
         for j, f in enumerate(freq_array):
@@ -106,9 +104,9 @@ def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
                   f"A=[{a:.4f}/{max_amplitude}],"
                   f" f=[{f:.4f}/{max_freq}]",
                   end='\r')
-            torque = a * np.cos(2 * np.pi * f * t)
+            torque = a * np.cos(2 * np.pi * f * time)
             torque_name = f"{a:.3f}cos(2" + r"$\pi$" + f"{f:.3f}t)"
-            _, _, _, _, _, force_arr = check_simulation_given_torque(delta_t, torque, torque_name, False)
+            _, _, _, _, _, force_arr = check_simulation_given_torque(torque, torque_name, False)
             all_rewards.append(np.mean(force_arr))
     grid = np.array(all_rewards).reshape((n_samples, n_samples))
     h = plt.contourf(freq_array, amplitude_arr, grid)
@@ -123,13 +121,13 @@ def energy_landscape(n_timesteps, end_time, max_amplitude, max_freq, n_samples):
 
 if __name__ == '__main__':
     end_t = 1
-    n_steps = 100
-    t = np.linspace(0, end_t, n_steps)
-    for f in [5]:
-        # tau = 0.02 * np.sin(2 * np.pi * f * t)
-        tau = ([0.02] * 10 + [-0.02] * 10) * 5
-        tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
-        _, _, _, _, _, force_arr = check_simulation_given_torque(tau, tau_name, True)
-        print(f"{tau_name}, F = {np.mean(force_arr)}")
+    n_steps = 10
+    # t = np.linspace(0, end_t, n_steps)
+    # for f in [5]:
+    #     # tau = 0.02 * np.sin(2 * np.pi * f * t)
+    #     tau = ([0.02] * 10 + [-0.02] * 10) * 5
+    #     tau_name = "cos(2" + r"$\pi$" + f"{f}t)"
+    #     _, _, _, _, _, force_arr = check_simulation_given_torque(tau, tau_name, True)
+    #     print(f"{tau_name}, F = {np.mean(force_arr)}")
 
-    # energy_landscape(n_steps, end_t, 0.025, 32, 10)
+    energy_landscape(n_steps, end_t, 0.025, 32, 10)

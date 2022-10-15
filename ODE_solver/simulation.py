@@ -42,7 +42,7 @@ class RobotSimulation:
                  start_t: float, end_t: float,
                  motor_torque: Callable = lambda x: 0,
                  alpha: float = RADIAN45,
-                 solve_ivp_time_increments: float = 0.001) -> None:
+                 solve_ivp_time_increments: float = 0.0005) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
         :param phi0: initial phi position of the current time window
