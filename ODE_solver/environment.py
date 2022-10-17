@@ -6,7 +6,7 @@ from simulation import RobotSimulation
 import random
 
 MIN_TORQUE = -1
-MAX_TORQUE = -1
+MAX_TORQUE = 1
 MIN_PHI = 0
 MAX_PHI = np.pi
 HISTORY_SIZE = 10
@@ -32,7 +32,7 @@ class WingEnv(Env):
         """
         the action space is a continuous torque value
         the observation space is currently a continuous value for phi (later I will add psi, theta)
-        :param min_torque: the minimal torque we can apply (+-1 is considered +-90 deg)
+        :param min_torque: the minimal torque we can apply
         :param max_torque: the maximal torque we can apply
         :param min_phi: the minimal rotation angle
         :param max_phi: the maximal rotation angle
@@ -62,6 +62,7 @@ class WingEnv(Env):
         })
         self.simulation: RobotSimulation = RobotSimulation(phi0=INITIAL_PHI0, phi_dot0=INITIAL_PHI_DOT0, start_t=0,
                                                            end_t=self.step_time)
+
         self.info: dict = {}
 
     def step(self, action: np.ndarray):
@@ -72,7 +73,14 @@ class WingEnv(Env):
 
         # (1) INVOKE SIMULATION:
         self.simulation.set_motor_torque(lambda x: action)
-        phi, phi_dot, _, _, _, lift_force, _ = self.simulation.solve_dynamics()
+        phi, phi_dot, _, _, time, lift_force, _ = self.simulation.solve_dynamics()
+        self.info['curr_simulation_output'] = {
+            'phi': phi,
+            'phi_dot': phi_dot,
+            'lift_force': lift_force,
+            'time': time,
+            'action': action * np.ones(time.shape[0])
+        }
 
         # (2) UPDATE STATE & ACTION HISTORY:
         for item in phi[-self.history_size:]: self.phi_history_deque.append(item)  # appending (FILO) the last elements
@@ -96,9 +104,13 @@ class WingEnv(Env):
         self.simulation.set_init_cond(phi[-1], phi_dot[-1])
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
 
-        self.info = {'iter': self.n_steps, 'state': np_phi[-1], 'action': np_torque[-1],
-                     'lift_reward': LIFT_WEIGHT * lift_reward, 'angle_reward': PHI_WEIGHT * phi_reward,
-                     'torque_reward': TORQUE_WEIGHT * torque_reward, 'total_reward': reward.item()}
+        self.info['iter'] = self.n_steps
+        self.info['state'] = np_phi[-1]
+        self.info['action'] = np_torque[-1]
+        self.info['lift_reward'] = LIFT_WEIGHT * lift_reward
+        self.info['angle_reward'] = PHI_WEIGHT * phi_reward
+        self.info['torque_reward'] = TORQUE_WEIGHT * torque_reward
+        self.info['total_reward'] = reward.item()
 
         if self.n_steps % 100 == 0: self._pretty_print_info()
 

@@ -70,7 +70,9 @@ def check_simulation_given_torque(torque: np.ndarray, torque_name: str, do_plot:
 
     for action in torque:
         sim.set_motor_torque(lambda x: action)
-        phi, phi_dot, phi_ddot, ang, time, lift_force, torque = sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr, force_arr, torque_arr)
+        phi, phi_dot, phi_ddot, ang, time, lift_force, torque = sim.solve_dynamics(phi_arr, phi_dot_arr, phi_ddot_arr,
+                                                                                   ang_arr, time_arr, force_arr,
+                                                                                   torque_arr)
         phi0, phidot0 = phi[-1], phi_dot[-1]
         start_t = end_t
         end_t += 0.2

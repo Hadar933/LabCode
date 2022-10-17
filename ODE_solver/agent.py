@@ -7,13 +7,13 @@ from stable_baselines3 import PPO
 import os
 
 
-class TensorboardCallback(BaseCallback):
+class _TensorboardCallback(BaseCallback):
     """
     Custom callback for plotting additional values in tensorboard.
     """
 
     def __init__(self, environment: WingEnv, verbose=0):
-        super(TensorboardCallback, self).__init__(verbose)
+        super(_TensorboardCallback, self).__init__(verbose)
         self.env = environment
 
     def _on_step(self) -> bool:
@@ -29,7 +29,7 @@ def train_model_and_save(env: WingEnv, steps_to_train: int, name: str, use_tenso
     env.reset()
     if use_tensorboard_in_colab:
         model = PPO("MultiInputPolicy", env, device='cuda', tensorboard_log='/content/tensorboard')
-        model.learn(total_timesteps=steps_to_train, callback=TensorboardCallback(env))
+        model.learn(total_timesteps=steps_to_train, callback=_TensorboardCallback(env))
     else:
         model = PPO("MultiInputPolicy", env)
         model.learn(total_timesteps=steps_to_train)
@@ -40,38 +40,37 @@ def train_model_and_save(env: WingEnv, steps_to_train: int, name: str, use_tenso
 def load_model_and_invoke(env: WingEnv, name: str, n_steps: int):
     obs = env.reset()
     model = PPO.load(f"{name}.zip")
-    rewards, states, actions, time = [0.0], [0.0], [0.0], [0.0]
-
-    for i in range(n_steps - 1):
+    phi_arr = np.array([], dtype=np.float32)
+    phi_dot_arr = np.array([], dtype=np.float32)
+    lift_force_arr = np.array([], dtype=np.float32)
+    time_arr = np.array([], dtype=np.float32)
+    action_arr = np.array([], dtype=np.float32)
+    for i in range(n_steps):
         action, _states = model.predict(obs)
         obs, reward, done, info = env.step(action)
-        rewards.append(reward)
-        states.append(obs['phi'][-1])
-        actions.append(action.item())
-        time.append((i + 1) * env.step_time)
+        phi, phi_dot, lift_force, time, action = info['curr_simulation_output'].values()
+        phi_arr = np.append(phi_arr, phi)
+        phi_dot_arr = np.append(phi_dot_arr, phi_dot)
+        lift_force_arr = np.append(lift_force_arr, lift_force)
+        time_arr = np.append(time_arr, time)
+        action_arr = np.append(action_arr, action)
         # if done: obs = env.reset()
     env.close()
-    return rewards, states, actions, time
+    return [phi_arr, phi_dot_arr, lift_force_arr, action_arr, time_arr]
 
 
-def plot_steps(rewards, states, actions, time, name, save):
-    fig, axs = plt.subplots(3, 1)
-    fig.set_size_inches(18, 8)
+def plot_steps(all_arrays, time_arr, name, save):
+    num_plots = len(all_arrays)
+    fig, axs = plt.subplots(num_plots, 1)
+    fig.set_size_inches(12, 6)
     fig.suptitle(name)
-
-    axs[0].plot(time, rewards, linewidth=0.8)
-    axs[0].set(ylabel=r"Reward [Arb.U]")
-
-    axs[1].plot(time, actions, linewidth=0.8)
-    axs[1].set(ylabel=r"Action $\tau [Nm]$")
-
-    axs[2].plot(time, states, linewidth=0.8)
-    axs[2].set(ylabel=r"State $\phi [rad]$")
-    axs[2].set(xlabel='time [sec]')
-    axs[2].axhline(y=np.pi, color='r', linestyle='--')
-    axs[2].text(x=900, y=np.pi + 0.3, s=r"$\phi=\pi$")
-    axs[2].axhline(y=0, color='r', linestyle='--')
-    axs[2].text(x=900, y=0.3, s=r"$\phi=0$")
+    cmap = plt.cm.get_cmap('twilight_shifted', num_plots)
+    for i, (arr, name) in enumerate(
+            zip(all_arrays, [r"$\phi$ [rad]", r"$\dot\phi$ [rad/sec]", r"$F_{LIFT}$ [N]", r"$\tau$ [Nm]"])):
+        axs[i].plot(time_arr, arr, linewidth=1.2, c=cmap(i))
+        axs[i].set(ylabel=name)
+        axs[i].grid()
+    axs[num_plots - 1].set(xlabel='time [sec]')
 
     if save: plt.savefig(f"{name}_fig")
     plt.show()
@@ -80,8 +79,8 @@ def plot_steps(rewards, states, actions, time, name, save):
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
     print(f"Working in colab: {in_colab}")
-    n_train_steps = 160_000
-    invoke_for = 1000
+    n_train_steps = 170_000
+    invoke_steps = 1000
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True
 
@@ -92,7 +91,9 @@ if __name__ == '__main__':
     if f"{model_name}.zip" not in os.listdir():  # need to train
         print("Training model...")
         train_model_and_save(wing_env, n_train_steps, model_name, in_colab)
-
     print("Invoking model")
-    R, S, A, T = load_model_and_invoke(wing_env, model_name, invoke_for)
-    if plot_after_invocation: plot_steps(R, S, A, T, model_name, in_colab)
+    all_arrays = load_model_and_invoke(wing_env, model_name, invoke_steps)
+    time = all_arrays.pop()
+    if plot_after_invocation: plot_steps(all_arrays, time, model_name, in_colab)
+
+    phi_arr, phi_dot_arr, lift_force_arr, action_arr, time_arr = all_arrays
