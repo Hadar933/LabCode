@@ -9,50 +9,48 @@ import os
 from constants import *
 
 
-# class SummaryWriterCallback(BaseCallback):
-#     def __init__(self, env_info: dict):
-#         super(SummaryWriterCallback, self).__init__()
-#         self.info = env_info
-#
-#     def _on_training_start(self):
-#         self._log_freq = 1000  # log every 1000 calls
-#
-#         output_formats = self.logger.output_formats
-#         # Save reference to tensorboard formatter object
-#         # note: the failure case (not formatter found) is not handled here, should be done with try/except.
-#         self.tb_formatter = next(
-#             formatter for formatter in output_formats if isinstance(formatter, TensorBoardOutputFormat))
-#
-#     def _on_step(self) -> bool:
-#         if self.n_calls % self._log_freq == 0:
-#             r_lift = self.info['lift_reward']
-#             r_action = self.info['torque_reward']
-#             r_phi = self.info['angle_reward']
-#             self.tb_formatter.writer.add_scalar(f'check_info/lift_reward', r_lift, self.num_timesteps)
-#             self.tb_formatter.writer.add_scalar(f'check_info/action_reward', r_action, self.num_timesteps)
-#             self.tb_formatter.writer.add_scalar(f'check_info/phi_reward', r_phi, self.num_timesteps)
-#             self.tb_formatter.writer.flush()
+class SummaryWriterCallback(BaseCallback):
+    def __init__(self, env: WingEnv):
+        super(SummaryWriterCallback, self).__init__()
+        self.env = env
 
-
-class _TensorboardCallback(BaseCallback):
-    """
-    Custom callback for plotting additional values in tensorboard.
-    """
-
-    def __init__(self, environment: WingEnv, verbose=0):
-        super(_TensorboardCallback, self).__init__(verbose)
-        self.env = environment
+    def _on_training_start(self):
+        self._log_freq = 1000  # log every 1000 calls
+        output_formats = self.logger.output_formats
+        # Save reference to tensorboard formatter object
+        # note: the failure case (not formatter found) is not handled here, should be done with try/except.
+        self.tb_formatter = next(frmtr for frmtr in output_formats if isinstance(frmtr, TensorBoardOutputFormat))
 
     def _on_step(self) -> bool:
-        """
-        every model step this function is being called and saves some relevant model values
-        :return:
-        """
-        phi = self.env.info[STATE_KEY]
-        action = self.env.info[ACTION_KEY]
-        self.logger.record("phi", phi)
-        self.logger.record("action", action)
-        return True
+        if self.n_calls % self._log_freq == 0:
+            r_lift = self.env.info[LIFT_REWARD_KEY]
+            r_action = self.env.info[TORQUE_REWARD_KEY]
+            r_phi = self.env.info[ANGLE_REWARD_KEY]
+            self.tb_formatter.writer.add_scalar(f'check_info/{LIFT_REWARD_KEY}', r_lift, self.num_timesteps)
+            self.tb_formatter.writer.add_scalar(f'check_info/{TORQUE_REWARD_KEY}', r_action, self.num_timesteps)
+            self.tb_formatter.writer.add_scalar(f'check_info/{ANGLE_REWARD_KEY}', r_phi, self.num_timesteps)
+            self.tb_formatter.writer.flush()
+
+
+# class _TensorboardCallback(BaseCallback):
+#     """
+#     Custom callback for plotting additional values in tensorboard.
+#     """
+#
+#     def __init__(self, environment: WingEnv, verbose=0):
+#         super(_TensorboardCallback, self).__init__(verbose)
+#         self.env = environment
+#
+#     def _on_step(self) -> bool:
+#         """
+#         every model step this function is being called and saves some relevant model values
+#         :return:
+#         """
+#         phi = self.env.info[STATE_KEY]
+#         action = self.env.info[ACTION_KEY]
+#         self.logger.record("phi", phi)
+#         self.logger.record("action", action)
+#         return True
 
 
 def train_model_and_save(env: WingEnv, steps_to_train: int, name: str, use_tensorboard_in_colab: bool) -> None:
@@ -63,7 +61,7 @@ def train_model_and_save(env: WingEnv, steps_to_train: int, name: str, use_tenso
     env.reset()
     if use_tensorboard_in_colab:
         model = PPO("MultiInputPolicy", env, device='cuda', tensorboard_log='/content/tensorboard')
-        model.learn(total_timesteps=steps_to_train, callback=_TensorboardCallback(env))
+        model.learn(total_timesteps=steps_to_train, callback=SummaryWriterCallback(env))
     else:
         model = PPO("MultiInputPolicy", env)
         model.learn(total_timesteps=steps_to_train)

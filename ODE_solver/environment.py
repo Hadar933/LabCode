@@ -51,8 +51,6 @@ class WingEnv(Env):
 
         self.info: dict = {}
 
-
-
     def step(self, action: np.ndarray):
         action *= self.max_approx_torque
         self.n_steps += 1
