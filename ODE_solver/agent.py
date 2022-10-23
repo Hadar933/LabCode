@@ -141,7 +141,7 @@ if __name__ == '__main__':
     check_env(wing_env)
 
     if f"{model_name}.zip" not in os.listdir():  # need to train
-        print("Training model...")
+        print(f"Training model {model_name}...")
         train_model_and_save(wing_env, n_train_steps, model_name, in_colab)
     print("Invoking model")
     sim_data, reward_data = load_model_and_invoke(wing_env, model_name, invoke_steps)
