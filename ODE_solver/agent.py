@@ -17,6 +17,10 @@ class _TensorboardCallback(BaseCallback):
         self.env = environment
 
     def _on_step(self) -> bool:
+        """
+        every model step this function is being called and saves some relevant model values
+        :return:
+        """
         phi = self.env.info['state']
         action = self.env.info['action']
         self.logger.record("phi", phi)
@@ -67,7 +71,7 @@ def plot_steps(all_arrays, time_arr, name, save):
     cmap = plt.cm.get_cmap('twilight_shifted', num_plots)
     for i, (arr, name) in enumerate(
             zip(all_arrays, [r"$\phi$ [rad]", r"$\dot\phi$ [rad/sec]", r"$F_{LIFT}$ [N]", r"$\tau$ [Nm]"])):
-        axs[i].plot(time_arr, arr, linewidth=1.2, c=cmap(i))
+        axs[i].plot(time_arr, arr, linewidth=1.2, c=cmap(i), marker='o', markersize=2.5)
         axs[i].set(ylabel=name)
         axs[i].grid()
     axs[num_plots - 1].set(xlabel='time [sec]')
@@ -79,8 +83,8 @@ def plot_steps(all_arrays, time_arr, name, save):
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
     print(f"Working in colab: {in_colab}")
-    n_train_steps = 170_000
-    invoke_steps = 1000
+    n_train_steps = 500_000
+    invoke_steps = 50
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True
 
@@ -96,4 +100,4 @@ if __name__ == '__main__':
     time = all_arrays.pop()
     if plot_after_invocation: plot_steps(all_arrays, time, model_name, in_colab)
 
-    phi_arr, phi_dot_arr, lift_force_arr, action_arr, time_arr = all_arrays
+    phi_arr, phi_dot_arr, lift_force_arr, action_arr = all_arrays
