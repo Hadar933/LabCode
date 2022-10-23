@@ -1,20 +1,7 @@
 from typing import Callable
 import numpy as np
 from scipy.integrate import solve_ivp
-
-MASS = 2.6e-4  # from the hummingbird paper
-WING_LENGTH = 0.07  # meters
-GYRATION_RADIUS = 0.6 * WING_LENGTH  # we use this for moment of inertia
-MoI = MASS * GYRATION_RADIUS ** 2
-AIR_DENSITY = 1.2  # From Arion's simulatio
-WING_AREA = 0.5 * WING_LENGTH * (0.5 * WING_LENGTH) * np.pi  # 1/2 ellipse with minor radios ~ 1/2 major = length/2
-# drag coefficients from whitney & wood (JFM 2010):
-C_D_MAX = 3.4
-C_D_0 = 0.4
-C_L_MAX = 1.8
-ZERO_CROSSING = 1
-RADIAN45 = np.pi / 4
-RADIAN135 = 3 * RADIAN45
+from constants import *
 
 
 def print_parameters():
