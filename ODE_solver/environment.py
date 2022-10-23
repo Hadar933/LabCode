@@ -4,21 +4,7 @@ from gym.spaces import Box, Dict
 import numpy as np
 from simulation import RobotSimulation
 import random
-
-MIN_TORQUE = -1
-MAX_TORQUE = 1
-MIN_PHI = 0
-MAX_PHI = np.pi
-HISTORY_SIZE = 10
-STEP_TIME = 0.01
-STEPS_PER_EPISODE = 20
-MAX_APPROX_TORQUE = 0.02
-ACTION_ERROR_PERCENTAGE = 0.05
-INITIAL_PHI0 = 0
-INITIAL_PHI_DOT0 = 2e-4
-LIFT_WEIGHT = 1
-PHI_WEIGHT = 1
-TORQUE_WEIGHT = 80
+from constants import *
 
 
 class WingEnv(Env):
@@ -55,15 +41,17 @@ class WingEnv(Env):
 
         self.action_space: Box = Box(np.array([min_torque], dtype=np.float32), np.array([max_torque], dtype=np.float32))
         self.observation_space: Dict = Dict({
-            "phi": Box(low=np.array([-np.inf] * self.history_size, dtype=np.float32),
-                       high=np.array([np.inf] * self.history_size), dtype=np.float32),
-            'torque': Box(low=np.array([min_torque] * self.history_size, dtype=np.float32),
-                          high=np.array([max_torque] * self.history_size, dtype=np.float32))
+            PHI_KEY: Box(low=np.array([-np.inf] * self.history_size, dtype=np.float32),
+                         high=np.array([np.inf] * self.history_size), dtype=np.float32),
+            TORQUE_KEY: Box(low=np.array([min_torque] * self.history_size, dtype=np.float32),
+                            high=np.array([max_torque] * self.history_size, dtype=np.float32))
         })
         self.simulation: RobotSimulation = RobotSimulation(phi0=INITIAL_PHI0, phi_dot0=INITIAL_PHI_DOT0, start_t=0,
                                                            end_t=self.step_time)
 
         self.info: dict = {}
+
+
 
     def step(self, action: np.ndarray):
         action *= self.max_approx_torque
@@ -74,13 +62,6 @@ class WingEnv(Env):
         # (1) INVOKE SIMULATION:
         self.simulation.set_motor_torque(lambda x: action)
         phi, phi_dot, _, _, time, lift_force, _ = self.simulation.solve_dynamics()
-        self.info['curr_simulation_output'] = {
-            'phi': phi,
-            'phi_dot': phi_dot,
-            'lift_force': lift_force,
-            'time': time,
-            'action': action * np.ones(time.shape[0])
-        }
 
         # (2) UPDATE STATE & ACTION HISTORY:
         for item in phi[-self.history_size:]: self.phi_history_deque.append(item)  # appending (FILO) the last elements
@@ -104,32 +85,56 @@ class WingEnv(Env):
         self.simulation.set_init_cond(phi[-1], phi_dot[-1])
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
 
-        self.info['iter'] = self.n_steps
-        self.info['state'] = np_phi[-1]
-        self.info['action'] = np_torque[-1]
-        self.info['lift_reward'] = LIFT_WEIGHT * lift_reward
-        self.info['angle_reward'] = PHI_WEIGHT * phi_reward
-        self.info['torque_reward'] = TORQUE_WEIGHT * torque_reward
-        self.info['total_reward'] = reward.item()
+        self._update_info(action, lift_force, lift_reward, np_phi, np_torque, phi, phi_dot, phi_reward, reward, time,
+                          torque_reward)
 
         if self.n_steps % 100 == 0: self._pretty_print_info()
 
-        obs = {'phi': np_phi, 'torque': np_torque}
+        obs = {PHI_KEY: np_phi, TORQUE_KEY: np_torque}
         return obs, reward.item(), done, self.info
+
+    def _update_info(self, action, lift_force, lift_reward, np_phi, np_torque, phi, phi_dot, phi_reward, reward, time,
+                     torque_reward):
+        """
+        updates relevant model information into the self.info variable
+        TODO: ideally this is only relevant AFTER the training phase
+        """
+        self.info[ITERATION_KEY] = self.n_steps
+        self.info[STATE_KEY] = np_phi[-1]
+        self.info[ACTION_KEY] = np_torque[-1]
+        self.info[STEP_SIMULATION_OUT_KEY] = {
+            PHI_KEY: phi,
+            PHI_DOT_KEY: phi_dot,
+            LIFT_FORCE_KEY: lift_force,
+            TIME_KEY: time,
+            ACTION_KEY: action * np.ones(time.shape[0])
+        }
+        self.info[REWARD_KEY] = {
+            LIFT_REWARD_KEY: LIFT_WEIGHT * lift_reward,
+            ANGLE_REWARD_KEY: PHI_WEIGHT * phi_reward,
+            TORQUE_REWARD_KEY: TORQUE_WEIGHT * torque_reward,
+            TOTAL_REWARD_KEY: reward.item()
+        }
 
     def _pretty_print_info(self) -> None:
         """
         a friendly function that prints the information of the environment
         """
-        state = self.info['state']
-        state_in_range = "OK" if self.min_phi <= state <= self.max_phi else "BAD"
-        print(f"[{self.info['iter']}] |"
-              f" s={state:.2f} ({state_in_range}) |"
-              f" a={self.info['action']:.4f} |"
-              f" r_LIFT= {self.info['lift_reward']:.2f} |"
-              f" r_STATE={self.info['angle_reward']:.2f} |"
-              f" r_ACTION={self.info['torque_reward'] :.2f} |"
-              f" r_TOTAL={self.info['total_reward']:.2f} |")
+        iter = self.info[ITERATION_KEY]
+        state = self.info[STATE_KEY]
+        action = self.info[ACTION_KEY]
+        r_lift = self.info[REWARD_KEY][LIFT_REWARD_KEY]
+        r_state = self.info[REWARD_KEY][ANGLE_REWARD_KEY]
+        r_action = self.info[REWARD_KEY][TORQUE_REWARD_KEY]
+        r_total = self.info[REWARD_KEY][TOTAL_REWARD_KEY]
+        print(f"[{iter}] |"
+              f" s={state:.2f} |"
+              f" a={action:.4f} |"
+              f" r_LIFT= {r_lift:.2f} |"
+              f" r_STATE={r_state:.2f} |"
+              f" r_ACTION={r_action :.2f} |"
+              f" r_TOTAL={r_total:.2f} |"
+              )
 
     def render(self, mode="human"):
         self._pretty_print_info()
@@ -149,8 +154,8 @@ class WingEnv(Env):
         self.phi_history_deque.append(random_phi)
         self.torque_history_deque.append(random_torque)
 
-        obs = {'phi': np.array(self.phi_history_deque, dtype=np.float32),
-               'torque': np.array(self.torque_history_deque, dtype=np.float32)}
+        obs = {PHI_KEY: np.array(self.phi_history_deque, dtype=np.float32),
+               TORQUE_KEY: np.array(self.torque_history_deque, dtype=np.float32)}
 
         self.steps_per_episode = STEPS_PER_EPISODE
 
