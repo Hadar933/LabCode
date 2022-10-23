@@ -23,9 +23,9 @@ class SummaryWriterCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.n_calls % self._log_freq == 0:
-            r_lift = self.env.info[LIFT_REWARD_KEY]
-            r_action = self.env.info[TORQUE_REWARD_KEY]
-            r_phi = self.env.info[ANGLE_REWARD_KEY]
+            r_lift = self.env.info[REWARD_KEY][LIFT_REWARD_KEY]
+            r_action = self.env.info[REWARD_KEY][TORQUE_REWARD_KEY]
+            r_phi = self.env.info[REWARD_KEY][ANGLE_REWARD_KEY]
             self.tb_formatter.writer.add_scalar(f'check_info/{LIFT_REWARD_KEY}', r_lift, self.num_timesteps)
             self.tb_formatter.writer.add_scalar(f'check_info/{TORQUE_REWARD_KEY}', r_action, self.num_timesteps)
             self.tb_formatter.writer.add_scalar(f'check_info/{ANGLE_REWARD_KEY}', r_phi, self.num_timesteps)
