@@ -76,7 +76,7 @@ def load_model_and_invoke(env: WingEnv, name: str, n_steps: int):
     obs = env.reset()
     model = PPO.load(f"{name}.zip")
     phi_arr, phidot_arr, lift_force_arr, time_arr, action_arr = [np.array([], dtype=np.float32) for _ in range(5)]
-    r_lift_arr, r_phi_arr, r_torque_arr, r_tot_arr = [np.array([], dtype=np.float32) for _ in range(4)]
+    r_lift_arr, r_phi_arr, r_torque_arr, r_power_arr, r_tot_arr = [np.array([], dtype=np.float32) for _ in range(5)]
 
     for i in range(n_steps):
         action, _states = model.predict(obs)
@@ -89,16 +89,17 @@ def load_model_and_invoke(env: WingEnv, name: str, n_steps: int):
         time_arr = np.append(time_arr, time)
         action_arr = np.append(action_arr, action)
 
-        lift_reward, phi_reward, torque_reward, total_reward = info[REWARD_KEY].values()
+        lift_reward, phi_reward, torque_reward, power_reward, total_reward = info[REWARD_KEY].values()
         r_lift_arr = np.append(r_lift_arr, lift_reward)
         r_phi_arr = np.append(r_phi_arr, phi_reward)
         r_torque_arr = np.append(r_torque_arr, torque_reward)
+        r_power_arr = np.append(r_power_arr, power_reward)
         r_tot_arr = np.append(r_tot_arr, total_reward)
 
         # if done: obs = env.reset()
     env.close()
     sim_arr = [phi_arr, phidot_arr, lift_force_arr, action_arr, time_arr]
-    reward_arr = [r_lift_arr, r_phi_arr, r_torque_arr, r_tot_arr]
+    reward_arr = [r_lift_arr, r_phi_arr, r_torque_arr, r_power_arr, r_tot_arr]
     return sim_arr, reward_arr
 
 
@@ -118,10 +119,10 @@ def plot_steps(sim_data, reward_data, time_arr, name, save):
 
     reward_idx = i + 1
     for reward_arr in reward_data:
-        axs[reward_idx].plot(range(len(reward_arr)), reward_arr, linewidth=1.2, marker='o', markersize=2.5)
+        axs[reward_idx].plot(range(len(reward_arr)), reward_arr, linewidth=1.2, marker='o', markersize=2.2)
     axs[reward_idx].set(ylabel='reward [Arb.U]', xlabel='Step [#]')
     axs[reward_idx].grid()
-    axs[reward_idx].legend([r'$r_{lift}$', r'$r_{\phi}$', r'$r_{\tau}$', r'$r_{tot}$'])
+    axs[reward_idx].legend([r'$r_{lift}$', r'$r_{\phi}$', r'$r_{\tau}$', r'$r_P$', r'$r_{tot}$'])
     if save: plt.savefig(f"{name}_reward_fig")
 
     plt.show()
@@ -130,7 +131,7 @@ def plot_steps(sim_data, reward_data, time_arr, name, save):
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
     print(f"Working in colab: {in_colab}")
-    n_train_steps = 200_000
+    n_train_steps = 1_000_000
     invoke_steps = 200
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True

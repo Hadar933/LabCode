@@ -31,6 +31,7 @@ INITIAL_PHI_DOT0 = 2e-4
 LIFT_WEIGHT = 1
 PHI_WEIGHT = 1
 TORQUE_WEIGHT = 80
+POWER_WEIGHT = 0
 
 # ENVIRONMENT KEYWORDS:
 
@@ -38,6 +39,7 @@ REWARD_KEY = 'reward'
 LIFT_REWARD_KEY = 'lift_reward'
 ANGLE_REWARD_KEY = 'angle_reward'
 TORQUE_REWARD_KEY = 'torque_reward'
+POWER_REWARD_KEY = 'power_reward'
 TOTAL_REWARD_KEY = 'total'
 PHI_KEY = 'phi'
 STATE_KEY = 'state'

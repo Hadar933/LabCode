@@ -76,23 +76,26 @@ class WingEnv(Env):
         phi_reward = surpass_min_phi.sum() + surpass_max_phi.sum()
         # (3.2) punish w.r.t to large changes to the torque:
         torque_reward = np.sum(np.diff(np_torque) ** 2)
-        # (3.3) weighted sum
-        reward = LIFT_WEIGHT * lift_reward - (PHI_WEIGHT * phi_reward) - (TORQUE_WEIGHT * torque_reward)
+        # (3.3) adding power reward
+        power_reward = np.max([0, np.mean(action * phi_dot)])
+        # (3.4) weighted sum
+        reward = LIFT_WEIGHT * lift_reward - (PHI_WEIGHT * phi_reward) - (TORQUE_WEIGHT * torque_reward) - (
+                POWER_WEIGHT * power_reward)
 
         # (4) UPDATING THE TIME WINDOW AND INITIAL CONDITION
         self.simulation.set_init_cond(phi[-1], phi_dot[-1])
         self.simulation.set_time(self.simulation.end_t, self.simulation.end_t + self.step_time)
 
-        self._update_info(action, lift_force, lift_reward, np_phi, np_torque, phi, phi_dot, phi_reward, reward, time,
-                          torque_reward)
+        self._update_env_info(action, lift_force, lift_reward, np_phi, np_torque, phi, phi_dot, phi_reward, reward,
+                              time, torque_reward, power_reward)
 
         if self.n_steps % 100 == 0: self._pretty_print_info()
 
         obs = {PHI_KEY: np_phi, TORQUE_KEY: np_torque}
         return obs, reward.item(), done, self.info
 
-    def _update_info(self, action, lift_force, lift_reward, np_phi, np_torque, phi, phi_dot, phi_reward, reward, time,
-                     torque_reward):
+    def _update_env_info(self, action, lift_force, lift_reward, np_phi, np_torque, phi, phi_dot, phi_reward, reward,
+                         time, torque_reward, power_reward):
         """
         updates relevant model information into the self.info variable
         TODO: ideally this is only relevant AFTER the training phase
@@ -105,36 +108,29 @@ class WingEnv(Env):
             PHI_DOT_KEY: phi_dot,
             LIFT_FORCE_KEY: lift_force,
             TIME_KEY: time,
-            ACTION_KEY: action * np.ones(time.shape[0])
-        }
+            ACTION_KEY: action * np.ones(time.shape[0])}
         self.info[REWARD_KEY] = {
             LIFT_REWARD_KEY: LIFT_WEIGHT * lift_reward,
             ANGLE_REWARD_KEY: PHI_WEIGHT * phi_reward,
             TORQUE_REWARD_KEY: TORQUE_WEIGHT * torque_reward,
-            TOTAL_REWARD_KEY: reward.item()
-        }
+            POWER_REWARD_KEY: POWER_WEIGHT * power_reward,
+            TOTAL_REWARD_KEY: reward.item()}
 
     def _pretty_print_info(self) -> None:
         """
         a friendly function that prints the information of the environment
         """
-        iter = self.info[ITERATION_KEY]
-        state = self.info[STATE_KEY]
-        action = self.info[ACTION_KEY]
-        r_lift = self.info[REWARD_KEY][LIFT_REWARD_KEY]
-        r_state = self.info[REWARD_KEY][ANGLE_REWARD_KEY]
-        r_action = self.info[REWARD_KEY][TORQUE_REWARD_KEY]
-        r_total = self.info[REWARD_KEY][TOTAL_REWARD_KEY]
-        print(f"[{iter}] |"
-              f" s={state:.2f} |"
-              f" a={action:.4f} |"
-              f" r_LIFT= {r_lift:.2f} |"
-              f" r_STATE={r_state:.2f} |"
-              f" r_ACTION={r_action :.2f} |"
-              f" r_TOTAL={r_total:.2f} |"
+        print(f"[{self.info[ITERATION_KEY]}] |"
+              f" s={self.info[STATE_KEY]:.2f} |"
+              f" a={self.info[ACTION_KEY]:.4f} |"
+              f" r_LIFT= {self.info[REWARD_KEY][LIFT_REWARD_KEY]:.2f} |"
+              f" r_STATE={self.info[REWARD_KEY][ANGLE_REWARD_KEY]:.2f} |"
+              f" r_ACTION={self.info[REWARD_KEY][TORQUE_REWARD_KEY] :.2f} |"
+              f" r_POWER={self.info[REWARD_KEY][POWER_REWARD_KEY] :.2f} |"
+              f" r_TOTAL={self.info[REWARD_KEY][TOTAL_REWARD_KEY]:.2f} |"
               )
 
-    def render(self, mode="human"):
+    def render(self, mode="human") -> None:
         self._pretty_print_info()
 
     def reset(self):

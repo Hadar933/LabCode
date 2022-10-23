@@ -8,9 +8,11 @@ def print_parameters():
     """
     a utility function that prints out all the calculated parameters in the simulation
     """
-    f"Gyration radius = {GYRATION_RADIUS}" \
-    f"Moment of Inertia = {MoI}" \
-    f"Wing Area = {WING_AREA}"
+    print(
+        f"Gyration radius = {GYRATION_RADIUS} |"
+        f"Moment of Inertia = {MoI} |"
+        f"Wing Area = {WING_AREA}"
+    )
 
 
 def _phi_dot_zero_crossing_event(t, y):
