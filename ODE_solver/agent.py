@@ -27,10 +27,11 @@ class SummaryWriterCallback(BaseCallback):
             r_lift = self.info['lift_reward']
             r_action = self.info['torque_reward']
             r_phi = self.info['angle_reward']
-            self.tb_formatter.writer.add_text("direct_access", "this is a value", self.num_timesteps)
-            self.tb_formatter.writer.add_scalar(f'check_info/lift_reward', r_lift, self.num_timesteps)
-            self.tb_formatter.writer.add_scalar(f'check_info/action_reward', r_action, self.num_timesteps)
-            self.tb_formatter.writer.add_scalar(f'check_info/phi_reward', r_phi, self.num_timesteps)
+            self.tb_formatter.writer.add_scalar(f'check_info/loss', {
+                'lift_reward': r_lift,
+                'action_reward': r_action,
+                'phi_reward': r_phi
+            }, self.num_timesteps)
 
             self.tb_formatter.writer.flush()
 
