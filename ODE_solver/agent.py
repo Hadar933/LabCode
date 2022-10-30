@@ -1,4 +1,5 @@
-from typing import List, Optional
+import sys
+from typing import List
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -48,7 +49,7 @@ class Agent:
         print("Checking env")
         check_env(self.env)
         self.model_name = model_name
-        self.in_colab = 'COLAB_GPU' in os.environ
+        self.in_colab = 'google.colab' in sys.modules
         print(f"Working in colab: {self.in_colab}")
 
     def train(self, n_train_steps: int) -> None:
