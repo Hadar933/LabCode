@@ -46,8 +46,8 @@ class SummaryWriterCallback(BaseCallback):
 class Agent:
     def __init__(self, model_name: str):
         self.env: WingEnv = WingEnv()
-        print("Checking env")
         check_env(self.env)
+        print("Checking environment: OK")
         self.model_name = model_name
         self.in_colab = 'google.colab' in sys.modules
         print(f"Working in colab: {self.in_colab}")
