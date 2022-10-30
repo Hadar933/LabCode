@@ -140,7 +140,7 @@ class WingEnv(Env):
     def render(self, mode="human") -> None:
         self._pretty_print_info()
 
-    def reset(self) -> dict[str, np.ndarray]:
+    def reset(self):
         """
         resets the environment with new state and action histories
         :return: an observation dictionary
