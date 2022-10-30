@@ -53,7 +53,7 @@ class WingEnv(Env):
 
         self.info: dict = {}
 
-    def step(self, action: np.ndarray) -> Tuple[dict[str, np.ndarray], float, bool, dict]:
+    def step(self, action: np.ndarray):
         """
         takes a step by solving the ode for a given time window and calculates the resulted reward
         :param action: a torque value the motor applies

@@ -51,7 +51,7 @@ class Agent:
         self.in_colab = 'COLAB_GPU' in os.environ
         print(f"Working in colab: {self.in_colab}")
 
-    def train_model(self, n_train_steps: int) -> None:
+    def train(self, n_train_steps: int) -> None:
         """
         performs model training with (in colab) or without (on pc) tensorboard support
         """
@@ -70,7 +70,7 @@ class Agent:
         model.save(self.model_name)
         del model
 
-    def load_model(self, n_test_steps: int):
+    def load(self, n_test_steps: int):
         """
         loads the trained model and tracks relevant data we wish to plot
         """
@@ -146,8 +146,8 @@ def main():
     plot_after_invocation = True
 
     A = Agent(model_name)
-    A.train_model(n_train_steps)
-    sim_data, reward_data = A.load_model(n_test_steps)
+    A.train(n_train_steps)
+    sim_data, reward_data = A.load(n_test_steps)
     time = sim_data.pop()
     if plot_after_invocation: A.plot_steps(sim_data, reward_data, time)
 
