@@ -43,13 +43,21 @@ class SummaryWriterCallback(BaseCallback):
             self.tb_formatter.writer.flush()
 
 
+def check_if_in_colab():
+    try:
+        import google.colab
+        return True
+    except:
+        return False
+
+
 class Agent:
     def __init__(self, model_name: str):
         self.env: WingEnv = WingEnv()
         check_env(self.env)
         print("Checking environment: OK")
         self.model_name = model_name
-        self.in_colab = 'google.colab' in sys.modules
+        self.in_colab = check_if_in_colab()
         print(f"Working in colab: {self.in_colab}")
 
     def train(self, n_train_steps: int) -> None:
