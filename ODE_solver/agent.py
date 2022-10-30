@@ -1,3 +1,5 @@
+from typing import List
+
 from matplotlib import pyplot as plt
 import numpy as np
 from environment import WingEnv
@@ -103,7 +105,20 @@ def load_model_and_invoke(env: WingEnv, name: str, n_steps: int):
     return sim_arr, reward_arr
 
 
-def plot_steps(sim_data, reward_data, time_arr, name, save):
+def plot_steps(sim_data: List[np.ndarray],
+               reward_data: List[np.ndarray],
+               time_arr: np.ndarray,
+               name: str,
+               save: bool) -> None:
+    """
+    plots the simulation returned values and the value of the loss function
+    :param sim_data: a list of relevant data arrays like phi,phi dot, etc...
+    :param reward_data: a list of all the components in the reward
+    :param time_arr: will be used as x-axis
+    :param name: name of the title
+    :param save: saves fig if wanted
+    """
+    # plots simulation data:
     num_plots = len(sim_data) + 1
     fig, axs = plt.subplots(num_plots, 1)
     fig.set_size_inches(12, 8)
@@ -111,15 +126,16 @@ def plot_steps(sim_data, reward_data, time_arr, name, save):
     cmap = plt.cm.get_cmap('twilight_shifted', num_plots - 1)
     for i, (sim_arr, unit) in enumerate(
             zip(sim_data, [r'$\phi$ [rad]', r'$\dot\phi$ [rad/sec]', r'$F_{lift}$ [N]', r'$\tau$ [Nm]'])):
-        axs[i].plot(time_arr, sim_arr, linewidth=1.2, c=cmap(i), marker='o', markersize=2.5)
+        axs[i].plot(time_arr, sim_arr, linewidth=1.2, c=cmap(i), marker='o', markersize=1.2)
         axs[i].set(ylabel=unit)
         axs[i].grid()
     axs[i].set(xlabel='time [sec]')
     if save: plt.savefig(f"{name}_sim_fig")
 
+    # plots reward:
     reward_idx = i + 1
     for reward_arr in reward_data:
-        axs[reward_idx].plot(range(len(reward_arr)), reward_arr, linewidth=1.2, marker='o', markersize=2.2)
+        axs[reward_idx].plot(range(len(reward_arr)), reward_arr, linewidth=1.2, marker='o', markersize=1.2)
     axs[reward_idx].set(ylabel='reward [Arb.U]', xlabel='Step [#]')
     axs[reward_idx].grid()
     axs[reward_idx].legend([r'$r_{lift}$', r'$r_{\phi}$', r'$r_{\tau}$', r'$r_P$', r'$r_{tot}$'])
@@ -131,8 +147,8 @@ def plot_steps(sim_data, reward_data, time_arr, name, save):
 if __name__ == '__main__':
     in_colab = 'COLAB_GPU' in os.environ
     print(f"Working in colab: {in_colab}")
-    n_train_steps = 1_000_000
-    invoke_steps = 200
+    n_train_steps = 200_000
+    invoke_steps = 100
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True
 

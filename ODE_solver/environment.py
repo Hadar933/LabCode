@@ -1,4 +1,6 @@
 from collections import deque
+from typing import Tuple
+
 from gym import Env
 from gym.spaces import Box, Dict
 import numpy as np
@@ -46,12 +48,17 @@ class WingEnv(Env):
             TORQUE_KEY: Box(low=np.array([min_torque] * self.history_size, dtype=np.float32),
                             high=np.array([max_torque] * self.history_size, dtype=np.float32))
         })
-        self.simulation: RobotSimulation = RobotSimulation(phi0=INITIAL_PHI0, phi_dot0=INITIAL_PHI_DOT0, start_t=0,
-                                                           end_t=self.step_time)
+        self.simulation: RobotSimulation = RobotSimulation(phi0=INITIAL_PHI0, phi_dot0=INITIAL_PHI_DOT0,
+                                                           start_t=0, end_t=self.step_time)
 
         self.info: dict = {}
 
-    def step(self, action: np.ndarray):
+    def step(self, action: np.ndarray) -> Tuple[dict[str, np.ndarray], float, bool, dict]:
+        """
+        takes a step by solving the ode for a given time window and calculates the resulted reward
+        :param action: a torque value the motor applies
+        :return: observation,reward value, done boolean and info dictionary
+        """
         action *= self.max_approx_torque
         self.n_steps += 1
         done = False if self.steps_per_episode > 0 else True
@@ -133,10 +140,10 @@ class WingEnv(Env):
     def render(self, mode="human") -> None:
         self._pretty_print_info()
 
-    def reset(self):
+    def reset(self) -> dict[str, np.ndarray]:
         """
         resets the environment with new state and action histories
-        :return:
+        :return: an observation dictionary
         """
         zero_history = [0.0] * (self.history_size - 1)
         self.phi_history_deque = deque(zero_history, maxlen=self.history_size)
