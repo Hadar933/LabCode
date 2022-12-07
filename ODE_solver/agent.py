@@ -1,6 +1,4 @@
-import sys
-from typing import List
-
+from typing import List, Dict
 from matplotlib import pyplot as plt
 import numpy as np
 from environment import WingEnv
@@ -28,10 +26,9 @@ class SummaryWriterCallback(BaseCallback):
         # note: the failure case (not formatter found) is not handled here, should be done with try/except.
         self.tb_formatter = next(frmtr for frmtr in output_formats if isinstance(frmtr, TensorBoardOutputFormat))
 
-    def _on_step(self) -> bool:
+    def _on_step(self):
         """
         every step, we track the reward values
-        :return:
         """
         if self.n_calls % self._log_freq == 0:
             r_lift = self.env.info[REWARD_KEY][LIFT_REWARD_KEY]
@@ -47,7 +44,7 @@ def check_if_in_colab():
     try:
         import google.colab
         return True
-    except:
+    except ModuleNotFoundError:
         return False
 
 
@@ -56,8 +53,8 @@ class Agent:
         self.env: WingEnv = WingEnv()
         check_env(self.env)
         print("Checking environment: OK")
-        self.model_name = model_name
-        self.in_colab = check_if_in_colab()
+        self.model_name: str = model_name
+        self.in_colab: bool = check_if_in_colab()
         print(f"Working in colab: {self.in_colab}")
 
     def train(self, n_train_steps: int) -> None:
@@ -149,7 +146,7 @@ class Agent:
 
 
 def main():
-    n_train_steps = 180_000
+    n_train_steps = 160_000
     n_test_steps = 100
     model_name = f"PPO_{str(n_train_steps)[:-3]}k"
     plot_after_invocation = True

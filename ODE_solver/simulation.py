@@ -1,6 +1,9 @@
-from typing import Callable
+from typing import Callable, List
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
+from tqdm import tqdm
+
 from constants import *
 
 
@@ -28,26 +31,29 @@ def _phi_dot_zero_crossing_event(t, y):
 class RobotSimulation:
     def __init__(self,
                  phi0: float, phi_dot0: float,
+                 psi0: float, psi_dot0: float,
                  start_t: float, end_t: float,
                  motor_torque: Callable = lambda x: 0,
                  alpha: float = RADIAN45,
-                 solve_ivp_time_increments: float = 0.0005) -> None:
+                 zero_crossing_time_increments: float = ZERO_CROSSING_TIME_INCREMENTS) -> None:
         """
         :param motor_torque: A function that returns float that represents the current torque provided by the motor
         :param phi0: initial phi position of the current time window
         :param phi_dot0: initial ang. velocity of the current time window
         :param start_t: start time of the current window
         :param end_t: end time of the current window
-        :param solve_ivp_time_increments: the time increments
+        :param zero_crossing_time_increments: the time increments
         """
         self.solution = 0
         self.motor_torque = motor_torque
-        self.alpha = alpha  # angle of attack
+        self.atk_angle = alpha  # angle of attack
         self.phi0 = phi0
         self.phi_dot0 = phi_dot0
+        self.psi0 = psi0
+        self.psi_dot0 = psi_dot0
         self.start_t = start_t
         self.end_t = end_t
-        self.solve_ivp_time_increments = solve_ivp_time_increments
+        self.zero_crossing_time_increment = zero_crossing_time_increments
 
     def set_time(self, new_start: float, new_end: float) -> None:
         """
@@ -57,12 +63,15 @@ class RobotSimulation:
         self.start_t = new_start
         self.end_t = new_end
 
-    def set_init_cond(self, new_phi0: float, new_phi_dot0: float) -> None:
+    def set_init_cond(self, new_phi0: float, new_phi_dot0: float,
+                      new_psi0: float, new_psi_dot0: float) -> None:
         """
         we update the initial conditions to be the last value of previous iterations
         """
         self.phi0 = new_phi0
         self.phi_dot0 = new_phi_dot0
+        self.psi0 = new_psi0
+        self.psi_dot0 = new_psi_dot0
 
     def set_motor_torque(self, new_motor_torque: Callable) -> None:
         """
@@ -71,26 +80,44 @@ class RobotSimulation:
         """
         self.motor_torque = new_motor_torque
 
-    def _flip_alpha(self) -> None:
+    def _flip_atk_angle(self) -> None:
         """
         changes the angle of attack's sign
         :return:
         """
-        self.alpha = RADIAN135 if self.alpha == RADIAN45 else RADIAN45
+        self.atk_angle = RADIAN135 if self.atk_angle == RADIAN45 else RADIAN45
 
     def _c_drag(self) -> float:
         """
         calculates the drag coefficient based on the angle of attack
         this function is used to calculate the drag torque
         """
-        return (C_D_MAX + C_D_0) / 2 - (C_D_MAX - C_D_0) / 2 * np.cos(2 * self.alpha)
+        return (C_D_MAX + C_D_0) / 2 - (C_D_MAX - C_D_0) / 2 * np.cos(2 * self.atk_angle)
 
-    def _c_lift(self, angle: np.ndarray) -> float:
+    def _c_lift(self, atk_angle: np.ndarray) -> float:
         """
         takes a vector of angles and calculates the lift coefficient.
         this function is used to calculate the lift force
         """
-        return C_L_MAX * np.sin(2 * angle)
+        return C_L_MAX * np.sin(2 * atk_angle)
+
+    def _lift_force(self, phi_dot: np.ndarray, atk_angle: np.ndarray) -> np.ndarray:
+        """
+        calculated the drag force on the wing, which will be used as reward
+        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no?
+        :param atk_angle: a np array of angle values
+        :param phi_dot: a np array of ang. velocities
+        :return: a lift force np array
+        """
+        c_lift = self._c_lift(atk_angle)
+        f_lift = 0.5 * AIR_DENSITY * WING_AREA * c_lift * phi_dot * np.abs(phi_dot)
+        return f_lift
+
+    def _drag_force(self, phi_dot: np.ndarray) -> np.ndarray:
+        """
+        takes a vector of velocities and calculates the drag force vector.
+        """
+        return 0.5 * AIR_DENSITY * WING_AREA * self._c_drag() * phi_dot * np.abs(phi_dot)
 
     def _drag_torque(self, phi_dot: np.ndarray) -> np.ndarray:
         """
@@ -98,73 +125,69 @@ class RobotSimulation:
         """
         return 0.5 * AIR_DENSITY * WING_AREA * self._c_drag() * (GYRATION_RADIUS ** 2) * phi_dot * np.abs(phi_dot)
 
-    def _phi_derivatives(self, t, y):
+    def _total_force(self, phi_dot: np.ndarray, atk_angle: np.ndarray):
+        f_lift = self._lift_force(phi_dot, atk_angle)
+        f_drag = self._drag_force(phi_dot)
+
+        return np.sqrt(f_drag ** 2 + f_lift ** 2)
+
+    def _phi_psi_derivatives(self, t, y):
         """
-        A function that defines the ODE that is to be solved: I * phi_ddot = tau_z - tau_drag.
-        We think of y as a vector y = [phi,phi_dot]. the ode solves dy/dt = f(y,t)
-        :return:
+        A function that defines the diff-equationS that are to be solved:
+         1. I * phi_ddot = tau_z - tau_drag.
+         2. I * psi_ddot = F_tot x R - kappa * psi - gamma * psi_dot
+        We think of y as a vector y = [phi,phi_dot,psi,psi_dot]. we solve dy/dt = f(t,y)
+        :return: dy/dt
         """
-        phi, phi_dot = y[0], y[1]
-        dy_dt = [phi_dot, (self.motor_torque(t) - self._drag_torque(phi_dot)) / MoI]
+        phi, phi_dot, psi, psi_dot = y
+        phi_ddot = (self.motor_torque(t) - self._drag_torque(phi_dot)) / MoI
+        psi_ddot = (self._total_force(phi_dot, psi) - PSI_KAPPA * psi - PSI_GAMMA * psi_dot) / MoI
+        dy_dt = [phi_dot, phi_ddot, psi_dot, psi_ddot]
         return dy_dt
 
-    def _lift_force(self, phi_dot: np.ndarray, angle: np.ndarray) -> np.ndarray:
+    def solve_dynamics(self):
         """
-        calculated the drag force on the wing, which will be used as reward
-        TODO: theoretically phi_dot here will have all + or all - sign, as we separate zero crosses, no?
-        :param angle: a np array of angle values
-        :param phi_dot: a np array of ang. velocities
-        :return: a lift force np array
-        """
-        c_lift = self._c_lift(angle)
-        f_lift = 0.5 * AIR_DENSITY * WING_AREA * c_lift * phi_dot * np.abs(phi_dot)
-        return f_lift
-
-    def solve_dynamics(self, *args):
-        """
-        a public function that solves the ODE
-        :param args: if given, it must be of the format [phi_arr, phi_dot_arr, phi_ddot_arr, ang_arr, time_arr]
-                     we use args to save the return values of the simulation for future plots, prints, etc...
+        a public function that solves the Diff-eq.
         :return:
         """
-        phi_0, phi_dot_0 = self.phi0, self.phi_dot0
-        start_t, end_t, delta_t = self.start_t, self.end_t, self.solve_ivp_time_increments
-        _phi_dot_zero_crossing_event.terminal = True
-        _phi_dot_zero_crossing_event.direction = -np.sign(phi_dot_0)
-        ang = []
-        times_between_zero_cross = []
-        sol_between_zero_cross = []
-        torque = []
-        while start_t < end_t:
-            # We track zero crossing to flip alpha, but in fact the value of alpha doesn't change the outcome
-            # as it is always 45 or 135, for which cos(2 alpha) = 1, so we don't really need this event tracker.
-            # there's a bug in solve_ivp where the sign values before and after the zero crossing behave weird
-            # so we neglect the zero crossing altogether for now.
-            # to properly track the value of alpha (and avoid solver's problems) we hold an array ang in which
-            # the values are given w.r.t the sign of phi_dot
-            # TODO: in the future I might solve this
+        sol = solve_ivp(self._phi_psi_derivatives,
+                        t_span=(self.start_t, self.end_t),
+                        y0=[self.phi0, self.phi_dot0, self.psi0, self.psi_dot0])
+        phi, phi_dot, psi, psi_dot = sol.y
+        _, phi_ddot, _, psi_ddot = self._phi_psi_derivatives(sol.t, [phi, phi_dot, psi, psi_dot])
 
-            sol = solve_ivp(self._phi_derivatives, t_span=(start_t, end_t), y0=[phi_0, phi_dot_0],
-                            events=_phi_dot_zero_crossing_event)
-            ang.append(np.where(np.sign(sol.y[1]) > 0, RADIAN45, RADIAN135))
-            times_between_zero_cross.append(sol.t)
-            sol_between_zero_cross.append(sol.y)
-            torque.append(self.motor_torque(0) * np.ones(len(sol.t)))  # torque is constant in every solve_dynamics call
-            if sol.status == ZERO_CROSSING:
-                start_t = sol.t[-1] + delta_t
-                phi_0, phi_dot_0 = sol.y[0][-1], sol.y[1][-1]  # last step is now initial value
-                _phi_dot_zero_crossing_event.direction *= -1
-                self._flip_alpha()
-            else:  # no zero crossing = the solution is for [start_t,end_t] and we are essentially done
-                break
+        torque = self.motor_torque(0) * np.ones(len(sol.t))  # torque is constant in every solve_dynamics call
+        lift_force = self._lift_force(phi_dot, psi)
+        time = sol.t
+        return phi, phi_dot, phi_ddot, psi, psi_dot, psi_ddot, time, lift_force, torque
 
-        time = np.concatenate(times_between_zero_cross)
-        phi, phi_dot = np.concatenate(sol_between_zero_cross, axis=1)
-        ang = np.concatenate(ang)
-        lift_force = self._lift_force(phi_dot, ang)
-        torque = np.concatenate(torque)
-        _, phi_ddot = self._phi_derivatives(time, [phi, phi_dot])
-        if args:
-            for i, arr in enumerate([phi, phi_dot, phi_ddot, ang, time, lift_force, torque]):
-                args[i].append(arr)
-        return phi, phi_dot, phi_ddot, ang, time, lift_force, torque
+
+if __name__ == '__main__':
+
+    start_t, end_t, n_steps = 0, 0.2, 1
+    t = np.linspace(start_t, end_t, n_steps)
+    f = 4
+    torque = 0.02 * np.sin(2 * np.pi * f * t)
+
+    phi0, phi_dot0 = 0, 2e-4
+    psi0, psi_dot0 = 0, 2e-4
+    sim = RobotSimulation(phi0, phi_dot0, psi0, psi_dot0, start_t, end_t)
+    vals = [np.array([]) for _ in range(9)]  # phi, phi_dot, phi_ddot, psi, psi_dot, psi_ddot, time, lift_force, torque
+    for action in tqdm(torque):
+        sim.set_motor_torque(lambda x: action)
+        new_vals = sim.solve_dynamics()
+        for i in range(9): vals[i] = np.concatenate((vals[i], new_vals[i]))
+        phi0, phi_dot0 = vals[0][-1], vals[1][-1]
+        psi0, psi_dot0 = vals[3][-1], vals[4][-1]
+        start_t = end_t
+        end_t += 0.2
+        sim.set_init_cond(phi0, phi_dot0, psi0, psi_dot0)
+        sim.set_time(start_t, end_t)
+    time = vals[6]
+    # for item, title in zip(vals, ['phi', 'phi_dot', 'phi_ddot',
+    #                               'psi', 'psi_dot', 'psi_ddot',
+    #                               'time', 'lift_force', 'torque']):
+    #     if title == 'time': continue
+    #     plt.plot(time, item)
+    #     plt.title(title)
+    #     plt.show()
