@@ -8,7 +8,7 @@ import os
 from torchvision import datasets, transforms
 from torchsummary import summary
 import torch.nn as nn
-from datasets import WingDataset
+from datasets import ds
 TIME_FORMAT = '%Y-%m-%d_%H-%M-%S'
 
 

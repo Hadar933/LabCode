@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple
 from preprocessor import Preprocess
 from encoders import Encoder
 import pandas as pd
@@ -6,46 +6,66 @@ from torch.utils.data import Dataset
 import torch
 
 
-def tensor_mb_size(v: torch.Tensor):
-    return v.nelement() * v.element_size() / 1_000_000
+class MultipleTS(Dataset):
+	def __init__(self, kinematics: torch.Tensor, forces: torch.Tensor,
+				 feature_lags: int, target_lags: int, feature_target_intersection: int):
+		"""
+		denote FL as feature lag, TL as target lag, intersection as I and history size as H. Assume we want to predict
+		at time t+FL+1, the time windows we provide are:
+		
+				ALL WINDOW: [0, 1, 2, 3,  ..., t-1, t, t+1,           ...               H-4, H-3, H-2, H-1]
+				FEATURE WINDOW:                    [t, t+1, ..., t-FL-1, t+FL]
+				TARGET WINDOW:                               [t+FL-I ,...t+FL, t+FL+1 , ..., t+FL+TL]
+		
+		as per the number of windows per ds - for every t we create a window, but also leaving room for the first
+		window (FL timestamps) and the last window (TL timestamps), minus their intersection + 1 (cut t_0=0)
+	
+		:param kinematics: a tensor with shape (N,H,F), where:
+					     - N: number of datasets
+					     - H: number of samples per dataset
+					     - F: number of features per sample
+		:param forces: a tensor with shape (N,H,T) where T is the number of targets to predict
+					   (currently supporting T=1)
+		:param feature_lags: feature history to consider
+		:param target_lags: target future to predict
+		:param feature_target_intersection: intersection between target and features
+		"""
+		self.feature_lag: int = feature_lags
+		self.target_lag: int = target_lags
+		self.feature_target_intersect: int = feature_target_intersection
+		self.kinematics: torch.Tensor = kinematics
+		self.forces: torch.Tensor = forces
+		self.n_datasets, self.n_samples_per_ds, self.n_features = self.kinematics.shape
+		self.n_windows_per_ds = self.n_samples_per_ds - self.feature_lag + self.feature_target_intersect - self.target_lag + 1
+	
+	def __len__(self) -> int:
+		return self.n_datasets * self.n_windows_per_ds
+	
+	def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+		# TODO: maybe add random start index.
+		print("======================================================================================================")
+		ds_idx = idx // self.n_windows_per_ds
+		win_idx = idx % self.n_windows_per_ds
+		print(f"idx={idx} [ds={ds_idx}, win={win_idx}]")
+		features_window = self.kinematics[ds_idx, win_idx: win_idx + self.feature_lag]
+		print(f"feature window [{ds_idx}, {win_idx}:{win_idx + self.feature_lag}]-")
+		print(features_window)
+		target_window = self.forces[ds_idx, win_idx + self.feature_lag - self.feature_target_intersect:
+											win_idx + self.feature_lag - self.feature_target_intersect + self.target_lag]
+		print(f"target window [{ds_idx}, {win_idx + self.feature_lag - self.feature_target_intersect}:{win_idx + self.feature_lag - self.feature_target_intersect + self.target_lag}]-")
+		print(target_window)
+		
+		return features_window, target_window
 
 
-class WingDataset(Dataset):
-    def __init__(self, data_path: str, feature_lags: int, target_lags: int):
-        self.data_path = data_path
-        self.feature_lags = feature_lags
-        self.target_lags = target_lags
-        self.raw_data: pd.DataFrame = self.read_data()
-        self.preprocessed_data: torch.Tensor = None
-        self.encoded_data: pd.DataFrame = None
-        self.feature_cols: Dict[str, int] = {}
-        self.target_cols: Dict[str, int] = {}
-
-    def read_data(self) -> pd.DataFrame:
-        if self.data_path.endswith(".csv"):
-            try:
-                result = pd.read_csv(self.data_path, index_col=0, parse_dates=['ts'])
-            except ValueError:
-                result = pd.read_csv(self.data_path, index_col=0, compression="gzip")
-
-        elif self.data_path.endswith(".gz"):
-            try:
-                result = pd.read_csv(self.data_path, index_col=0, parse_dates=['ts'], compression="gzip")
-            except ValueError:
-                result = pd.read_csv(self.data_path, index_col=0, compression="gzip")
-
-        elif self.data_path.endswith(".pkl"):
-            result = pd.read_pickle(self.data_path)
-        else:
-            raise ValueError(f"[Reader] File {self.data_path} has wrong format")
-        return result
-
-    def encode_data(self):
-        return self.preprocessed_data
-
-    def __len__(self):
-        return len(self.preprocessed_data) - self.feature_lags
-
-    def __getitem__(self, idx):
-        features_window = self.preprocessed_data[idx: idx + self.feature_lags, list(self.feature_cols.values())]
-        target_window = self.preprocessed_data[idx: idx + self.target_lags, list(self.target_cols.values())]
+if __name__ == '__main__':
+	k = torch.Tensor([[[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]],
+					  [[8, 8], [9, 9], [10, 10], [11, 11], [12, 12]]])
+	
+	f = torch.Tensor([[[1], [2], [3], [4], [5]],
+					  [[8], [9], [10], [11], [12]]])
+	ds = MultipleTS(k, f, 3, 2, 1)
+	dl = torch.utils.data.DataLoader(ds)
+	print(len(ds))
+	for x, y in dl:
+		z = 2
